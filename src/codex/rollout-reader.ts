@@ -21,11 +21,17 @@ interface FileState {
 export class RolloutReader implements MetadataReader {
   connected = true;
   private readonly files: FileState[];
+  private readonly discover?: () => Promise<string[]>;
   private rows = new Map<string, FileState>();
+  private quarantined = new Set<FileState>();
+  get healthMessage(): string | undefined {
+    return this.quarantined.size ? `${this.quarantined.size} rollout file(s) quarantined; some sessions may be missing.` : undefined;
+  }
 
-  constructor(paths: readonly string[]) {
-    if (!paths.length || paths.length > MAX_PATHS || paths.some(p => !isAbsolute(p) || p.includes('\0')) || new Set(paths).size !== paths.length)
+  constructor(paths: readonly string[], discover?: () => Promise<string[]>) {
+    if ((!paths.length && !discover) || paths.length > MAX_PATHS || paths.some(p => !isAbsolute(p) || p.includes('\0')) || new Set(paths).size !== paths.length)
       throw new Error('Provide a bounded list of distinct absolute rollout paths.');
+    this.discover = discover;
     this.files = paths.map(path => ({ path, offset: 0, prefix: Buffer.alloc(0), dev: 0, ino: 0,
       historicalEnd: 0, lastSize: 0, initial: true, status: 'unknown' }));
   }
@@ -49,19 +55,29 @@ export class RolloutReader implements MetadataReader {
   }
 
   private async refresh(): Promise<void> {
-    try {
-      for (const file of this.files) await this.readFile(file);
-      const rows = new Map<string, FileState>();
-      for (const file of this.files) if (file.id && file.cwd) {
-        if (rows.has(file.id)) throw new Error('Duplicate rollout identity.');
-        rows.set(file.id, file);
-      }
-      this.rows = rows;
-    } catch {
-      this.connected = false;
-      this.rows.clear();
-      throw new Error('Could not safely read rollout metadata.');
+    if (this.discover) {
+      const paths = await this.discover();
+      if (paths.length > MAX_PATHS || paths.some(p => !isAbsolute(p) || p.includes('\0')) || new Set(paths).size !== paths.length)
+        throw new Error('Invalid discovered rollout paths.');
+      const known = new Set(this.files.map(file => file.path));
+      for (const path of paths) if (!known.has(path)) this.files.push({ path, offset: 0, prefix: Buffer.alloc(0), dev: 0, ino: 0,
+        historicalEnd: 0, lastSize: 0, initial: true, status: 'unknown' });
     }
+    for (const file of this.files) {
+      if (this.quarantined.has(file)) continue;
+      try { await this.readFile(file); } catch { this.quarantined.add(file); }
+    }
+    const identities = new Map<string, FileState[]>();
+    for (const file of this.files) if (!this.quarantined.has(file) && file.id && file.cwd) {
+      const group = identities.get(file.id) ?? [];
+      group.push(file); identities.set(file.id, group);
+    }
+    const rows = new Map<string, FileState>();
+    for (const [id, group] of identities) {
+      if (group.length !== 1) { for (const file of group) this.quarantined.add(file); }
+      else rows.set(id, group[0]);
+    }
+    this.rows = rows;
   }
 
   private async readFile(file: FileState): Promise<void> {
@@ -131,7 +147,7 @@ export class RolloutReader implements MetadataReader {
           file.turn = turn; file.status = !turn || historical ? 'unknown' : 'active'; break;
         case 'task_complete': case 'turn_complete':
           if (!turn || (file.turn && file.turn !== turn)) { file.status = 'unknown'; break; }
-          file.turn = undefined; file.status = payload.error != null ? 'systemError' : 'idle'; break;
+          file.turn = undefined; file.status = historical ? 'unknown' : payload.error != null ? 'systemError' : 'idle'; break;
         case 'turn_aborted':
           file.turn = undefined; file.status = 'unknown'; break;
       }

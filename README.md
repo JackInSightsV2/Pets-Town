@@ -101,3 +101,6 @@ Then consider [#8: Voice](https://github.com/JackInSightsV2/Pets-Town/issues/8) 
 - [Office image prompt and provenance](assets/office/office-v1.prompt.md)
 
 The app references three genuine built-in pet sprite sheets through the official asset URLs in [the pet manifest](src/shared/pets.ts), with a local download cache for reliable rendering. Plugin installation, full live office acceptance, voice and live computer view are not claimed complete.
+
+
+Windows rollout observation accepts `PETSTOWN_ROLLOUT_FILES` as a JSON array of absolute log paths, or `PETSTOWN_ROLLOUT_ROOT` as an absolute directory for bounded discovery of rollout files. Set `PETSTOWN_METADATA_CWDS` to a JSON array of exact project directories. Discovery is read-only and does not follow directory links. A file with invalid, replaced, or conflicting identity metadata is quarantined for the lifetime of the reader; the connection message reports the count and the roster may be incomplete. Restart the observer to retry quarantined files. Historical records do not establish current activity; only newly observed lifecycle records can do so.
