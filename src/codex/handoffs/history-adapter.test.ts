@@ -78,8 +78,12 @@ test('reader failure marks source unavailable and never emits later history',asy
   h.fail('a'); await delay();
   const snapshot=await adapter.initialSnapshot();
   assert.equal(snapshot.capabilities.observeHandoffs.supported,false);
-  assert.equal(snapshot.connection.status,'disconnected');
-  h.recover('a'); h.items.set('a',[item('old'),item('missed')]); await delay();
+  assert.equal(snapshot.connection.status,'connected');
+  h.recover('a'); h.items.set('a',[item('old'),item('missed')]);
+  h.emit({protocolVersion:1,bridgeEpoch:'base',seq:1,eventId:'metadata-after-failure',occurredAt:at,source:'codex',
+    type:'agent.upserted',agentId:'c',data:{agent:agent('c')}});
+  await delay();
+  assert.ok((await adapter.initialSnapshot()).agents.some(a=>a.agentId==='c'));
   assert.equal(h.events.filter(e=>e.type==='handoff.observed').length,0);
 });
 
@@ -106,7 +110,7 @@ test('an observer gap fails closed and stops handoff delivery',async t=>{
   const h=harness(); const adapter=await setup(h); t.after(()=>adapter.stop());
   h.emit({protocolVersion:1,bridgeEpoch:'base',seq:2,eventId:'gap',occurredAt:at,source:'codex',
     type:'agent.upserted',agentId:'c',data:{agent:agent('c')}});
-  assert.equal((await adapter.initialSnapshot()).connection.status,'disconnected');
+  assert.equal((await adapter.initialSnapshot()).connection.status,'connected');
   assert.equal((await adapter.initialSnapshot()).capabilities.observeHandoffs.supported,false);
   h.items.set('a',[item('old'),item('after-gap')]); await delay();
   assert.equal(h.events.filter(e=>e.type==='handoff.observed').length,0);
