@@ -15,7 +15,7 @@ export interface TurnLifecycleObservation {
 }
 
 export function isTurnLifecycleObservation(value: unknown): value is TurnLifecycleObservation {
-  if (!value || typeof value !== 'object') return false;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const row = value as Record<string, unknown>;
   return typeof row.agentId === 'string' && row.agentId.length > 0 && row.agentId.length <= 4096
     && typeof row.turnId === 'string' && /^turn-v1-[a-f0-9]{64}$/.test(row.turnId)
@@ -25,4 +25,18 @@ export function isTurnLifecycleObservation(value: unknown): value is TurnLifecyc
     && (row.delivery === 'live' || row.delivery === 'history')
     && typeof row.occurredAt === 'string' && Number.isFinite(Date.parse(row.occurredAt))
     && (row.startedAt === null || (typeof row.startedAt === 'number' && Number.isSafeInteger(row.startedAt) && row.startedAt >= 0));
+}
+
+export function upsertLatestTurn(existing: TurnLifecycleObservation[] | undefined,
+  observation: TurnLifecycleObservation): TurnLifecycleObservation[];
+export function upsertLatestTurn(existing: readonly TurnLifecycleObservation[] | undefined,
+  observation: TurnLifecycleObservation): readonly TurnLifecycleObservation[];
+/** Keep snapshot evidence monotonic without owning runtime state or replay history. */
+export function upsertLatestTurn(existing: readonly TurnLifecycleObservation[] | undefined,
+  observation: TurnLifecycleObservation): readonly TurnLifecycleObservation[] {
+  const current = existing?.find(row => row.agentId === observation.agentId);
+  if (current && (current.sourceEventId === observation.sourceEventId
+    || (current.turnId === observation.turnId && current.status !== 'started' && current.status !== observation.status)
+    || (current.startedAt !== null && observation.startedAt !== null && current.startedAt > observation.startedAt))) return existing!;
+  return [...(existing ?? []).filter(row => row.agentId !== observation.agentId), observation];
 }

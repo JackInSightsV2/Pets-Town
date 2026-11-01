@@ -126,6 +126,23 @@ export function createTurnLifecycleController(options: { maxObservations?: numbe
     observe(observation: TurnLifecycleObservation, deliveryGeneration: number): 'applied' | 'duplicate' | 'ignored' | 'unavailable' {
       if (deliveryGeneration !== generation || !connected) return 'ignored';
       if (!isTurnLifecycleObservation(observation) || !agents.has(observation.agentId)) return 'unavailable';
+      // Late discovery and source reconnect may deliver a latest-turn baseline
+      // after the roster snapshot. It is authoritative presence, never motion.
+      if (observation.delivery === 'history') {
+        const entry = entries.get(observation.agentId)!;
+        const previous = entry.observation;
+        const terminal = terminals.get(observation.turnId);
+        if (retiredTurns.has(observation.turnId) || (terminal && terminal !== observation.status)
+            || (previous?.startedAt != null && observation.startedAt != null && observation.startedAt < previous.startedAt)) return 'ignored';
+        const result = remember(observation);
+        if (result === 'conflict' || result === 'full') return 'unavailable';
+        if (previous && previous.turnId !== observation.turnId) retiredTurns.add(previous.turnId);
+        if (observation.status !== 'started') terminals.set(observation.turnId, observation.status);
+        entry.observation = clone(observation);
+        effects = effects.filter(effect => effect.token.agentId !== observation.agentId);
+        settle(entry);
+        return 'applied';
+      }
       const result = remember(observation);
       if (result === 'duplicate') return 'duplicate';
       if (result !== 'new') return 'unavailable';

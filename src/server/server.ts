@@ -8,6 +8,8 @@ import { createUnsupportedAdapter, type OfficeAdapter } from './adapter.js';
 
 import { validEvent } from './validation.js';
 import { builtInPets } from '../shared/pets.js';
+import { upsertLatestTurn } from '../shared/turn-lifecycle.js';
+import { isOfficeSnapshot } from '../client/validation.js';
 
 export interface OfficeServerOptions { adapter?: OfficeAdapter; launchIdentity?: string; port?: number; distDir?: string; officeAssetPath?: string; replayLimit?: number; presentationStepMs?: number; petAssetFiles?: Readonly<Record<string, string>> }
 export async function createOfficeServer(options: OfficeServerOptions = {}) {
@@ -17,6 +19,7 @@ export async function createOfficeServer(options: OfficeServerOptions = {}) {
   let sink=(event:OfficeEvent)=>{buffered.push(event);};
   let unsubscribe:()=>void=()=>{};
   try { unsubscribe=adapter.subscribe(event=>sink(event)); snapshot = structuredClone(await adapter.initialSnapshot()); } catch (error) { unsubscribe(); await adapter.stop(); throw error; }
+  if (snapshot.latestTurns !== undefined && !isOfficeSnapshot(snapshot)) { unsubscribe(); await adapter.stop(); throw new Error('Invalid lifecycle snapshot.'); }
   const initialAdapterEpoch=snapshot.bridgeEpoch, initialAdapterSeq=snapshot.lastSeq;
   const epoch = randomUUID(), token = randomUUID();
   snapshot.bridgeEpoch = epoch; snapshot.lastSeq = 0; snapshot.controlToken = token;
@@ -50,6 +53,10 @@ export async function createOfficeServer(options: OfficeServerOptions = {}) {
       return;
     }
     if (seen.has(input.eventId)) return;
+    if (input.type === 'agent.turn.observed' && (input.source !== snapshot.source || !snapshot.agents.some(agent => agent.agentId === input.agentId))) {
+      adapterErrors++;
+      return;
+    }
     if (input.source==='fixture') snapshot.source='fixture';
     seen.add(input.eventId);
     // Bounded deduplication, like the bounded replay window.
@@ -60,6 +67,7 @@ export async function createOfficeServer(options: OfficeServerOptions = {}) {
       case 'agent.upserted': { const incoming=event.data.agent; const i = snapshot.agents.findIndex(a => a.agentId === incoming.agentId); incoming.pendingRequestIds=[...new Set([...incoming.pendingRequestIds,...(snapshot.agents[i]?.pendingRequestIds??[]),...snapshot.pendingRequests.filter(r=>r.agentId===incoming.agentId).map(r=>r.requestId)])]; if(i<0) snapshot.agents.push(incoming); else snapshot.agents[i]=incoming; break; }
       case 'agent.activity': if(agent) { agent.activityKind=event.data.activity.kind; agent.recentActivity=[event.data.activity,...agent.recentActivity.filter(a=>a.activityId!==event.data.activity.activityId)].slice(0,50); agent.lastObservedAt=event.occurredAt; } break;
       case 'agent.state.changed': if(agent) {agent.runtimeState=event.data.runtimeState;agent.lastObservedAt=event.occurredAt;} break;
+      case 'agent.turn.observed': snapshot.latestTurns=upsertLatestTurn(snapshot.latestTurns,event.data.observation); break;
       case 'agent.closed': if(agent) agent.runtimeState='closed'; break;
       case 'request.opened': snapshot.pendingRequests=snapshot.pendingRequests.filter(r=>r.requestId!==event.data.request.requestId); event.data.request.responseCapability=snapshot.capabilities.respondToRequests; snapshot.pendingRequests.push(event.data.request); {const owner=snapshot.agents.find(a=>a.agentId===event.data.request.agentId);if(owner&&!owner.pendingRequestIds.includes(event.data.request.requestId))owner.pendingRequestIds.push(event.data.request.requestId);} break;
       case 'request.resolved': { const owners=new Set([...snapshot.pendingRequests.filter(r=>r.requestId===event.data.requestId).map(r=>r.agentId),...snapshot.agents.filter(a=>a.pendingRequestIds.includes(event.data.requestId)).map(a=>a.agentId)]); if(event.agentId!==null&&[...owners].some(id=>id!==event.agentId)) { snapshot.lastSeq--; return; } snapshot.pendingRequests=snapshot.pendingRequests.filter(r=>r.requestId!==event.data.requestId); for(const owner of snapshot.agents) owner.pendingRequestIds=owner.pendingRequestIds.filter(id=>id!==event.data.requestId); break; }

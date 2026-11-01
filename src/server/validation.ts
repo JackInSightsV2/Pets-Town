@@ -1,4 +1,5 @@
 import type { OfficeEvent } from '../shared/contract.js';
+import { isTurnLifecycleObservation } from '../shared/turn-lifecycle.js';
 
 type RecordValue = Record<string, unknown>;
 const object=(value:unknown):value is RecordValue=>value!==null&&typeof value==='object'&&!Array.isArray(value);
@@ -27,6 +28,8 @@ export function validEvent(event: unknown): event is OfficeEvent {
     case 'agent.activity': return activity(data.activity);
     case 'agent.state.changed': return text(event.agentId)&&runtime(data.runtimeState);
     case 'agent.work.completed': return text(event.agentId)&&text(data.sourceItemId);
+    case 'agent.turn.observed': return isTurnLifecycleObservation(data.observation)
+      &&data.observation.agentId===event.agentId&&data.observation.source===event.source;
     case 'agent.closed': return text(event.agentId)&&nullableText(data.reason);
     case 'request.opened': return request(data.request);
     case 'request.resolved': return text(data.requestId)&&nullableText(data.reason);

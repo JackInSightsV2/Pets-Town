@@ -195,3 +195,16 @@ test('invalid baseline rows fail closed without throwing or changing initial pre
   const { controller, state } = setup([null as unknown as TurnLifecycleObservation]);
   assert.equal(state().visible, null); assert.deepEqual(controller.drainEffects(), []);
 });
+
+test('late history terminal establishes presence without a missed start or animation', () => {
+  const {controller,generation,state}=setup([]);
+  assert.equal(controller.observe(observation('interrupted','late-turn',{delivery:'history'}),generation),'applied');
+  assert.equal(state().phase,'sleeping');assert.deepEqual(controller.drainEffects(),[]);
+});
+
+test('replayed source baseline settles an in-flight terminal despite semantic dedup', () => {
+  const {controller,generation,state}=setup();
+  controller.observe(observation('failed'),generation);const token=controller.drainEffects()[0].token;
+  controller.observe(observation('failed','turn-a',{delivery:'history'}),generation);
+  assert.equal(state().visible,false);assert.equal(controller.complete(token),false);assert.deepEqual(controller.drainEffects(),[]);
+});
