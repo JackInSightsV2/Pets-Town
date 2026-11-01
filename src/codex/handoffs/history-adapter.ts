@@ -56,10 +56,10 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
   let enabled = false, sourceFailed = false, baseFailed = false;
   let activityUnavailable = false;
   let baseConnectionMessage: string | null = null;
-  function failHistorySource() {
+  function failHistorySource(reason = 'History reader failed; reopen Office to retry.') {
     if (!state || sourceFailed) return;
     sourceFailed = true; enabled = false;
-    state.capabilities.observeHandoffs = unsupported('History reader failed; reopen Office to retry.');
+    state.capabilities.observeHandoffs = unsupported(reason);
     // History support and metadata health are independent; notify connected viewers.
     publish({ protocolVersion: 1, bridgeEpoch: wrapEpoch, seq: 0, eventId: randomUUID(),
       occurredAt: now(), source: 'codex', type: 'capabilities.changed', agentId: null,
@@ -178,6 +178,10 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
               const occurredAt = now();
               const result = normalizer.observe({ source: 'codex', sourceNamespace: options.sourceNamespace, observedAt: occurredAt, delivery,
                 notification: { method: 'item/completed', params: { threadId, turnId: turn.id, item } } });
+              if (result.kind === 'unavailable' && result.reason === 'capacity-exceeded') {
+                failHistorySource('Handoff history capacity reached; handoffs unavailable for this history.');
+                return;
+              }
               if (result.kind === 'observed') for (const handoff of result.handoffs) {
                 publish({ protocolVersion: 1, bridgeEpoch: wrapEpoch, seq: 0, eventId: handoff.handoffId,
                   occurredAt, source: 'codex', type: 'handoff.observed', agentId: handoff.fromAgentId, data: { handoff } });
