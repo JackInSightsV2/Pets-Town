@@ -3,8 +3,8 @@ import type { PetAsset, RuntimeState } from '../shared/contract';
 import { animationFor } from './view-model';
 
 /** Draw only frames declared by a genuine native atlas manifest. */
-export function NativePet({ asset, state, size = 72 }: { asset: PetAsset; state: RuntimeState; size?: number }) {
-  const animation = animationFor(asset, state);
+export function NativePet({ asset, state, size = 72, animationName }: { asset: PetAsset; state: RuntimeState; size?: number; animationName?: string }) {
+  const animation = (animationName ? asset.animations[animationName] : undefined) ?? animationFor(asset, state);
   const [frame, setFrame] = useState(0);
   const [imageState, setImageState] = useState<{ url: string; status: 'loading' | 'loaded' | 'failed' }>({ url: asset.imageUrl, status: 'loading' });
   const status = imageState.url === asset.imageUrl ? imageState.status : 'loading';
