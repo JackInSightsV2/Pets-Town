@@ -14,7 +14,7 @@ type Status = 'unknown' | 'active' | 'idle' | 'systemError';
 interface FileState {
   path: string; offset: number; prefix: Buffer; dev: number; ino: number;
   historicalEnd: number; lastSize: number; initial: boolean;
-  id?: string; cwd?: string; parent?: string; status: Status; turn?: string;
+  id?: string; cwd?: string; parent?: string; nickname?: string; status: Status; turn?: string;
 }
 
 /** Explicit existing rollout files only. No directory discovery, writes or transcript retention. */
@@ -50,7 +50,7 @@ export class RolloutReader implements MetadataReader {
       throw new Error('Only metadata reads are supported.');
     const row = this.rows.get(params.threadId);
     if (!row || !row.id || !row.cwd) throw new Error('Thread not found.');
-    return { thread: { id: row.id, cwd: row.cwd, parentThreadId: row.parent ?? null,
+    return { thread: { id: row.id, cwd: row.cwd, parentThreadId: row.parent ?? null, agentNickname: row.nickname ?? null,
       status: row.status === 'active' ? { type: 'active', activeFlags: [] } : { type: row.status } } };
   }
 
@@ -139,7 +139,7 @@ export class RolloutReader implements MetadataReader {
     if (record.type === 'session_meta') {
       const id = str(payload.id), cwd = str(payload.cwd);
       if (!id || !cwd || (file.id && file.id !== id)) throw new Error('Invalid session metadata.');
-      file.id = id; file.cwd = cwd; file.parent = str(payload.parent_thread_id);
+      file.id = id; file.cwd = cwd; file.parent = str(payload.parent_thread_id); file.nickname = str(payload.agent_nickname);
     } else if (record.type === 'event_msg') {
       const turn = str(payload.turn_id);
       switch (payload.type) {

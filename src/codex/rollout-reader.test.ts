@@ -148,3 +148,10 @@ test('discovers new files after an initially empty source', async () => fixture(
   await writeFile(path, meta); paths = [path];
   assert.deepEqual((await reader.call('thread/loaded/list', {}) as {data:string[]}).data, ['synthetic-id']);
 }));
+
+test('passes through a native agent nickname without reading transcript text', async () => fixture(async path => {
+  await writeFile(path, line('session_meta', { id: 'synthetic-id', cwd: '/synthetic/project', agent_nickname: 'Scout' }));
+  const reader = new RolloutReader([path]); await reader.call('thread/loaded/list', {});
+  const result = await reader.call('thread/read', { threadId: 'synthetic-id', includeTurns: false }) as {thread: {agentNickname:string}};
+  assert.equal(result.thread.agentNickname, 'Scout');
+}));
