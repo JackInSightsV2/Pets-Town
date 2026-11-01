@@ -172,3 +172,34 @@ test('passes through a native agent nickname without reading transcript text', a
   const result = await reader.call('thread/read', { threadId: 'synthetic-id', includeTurns: false }) as {thread: {agentNickname:string}};
   assert.equal(result.thread.agentNickname, 'Scout');
 }));
+
+test('a late third file cannot revive a quarantined duplicate identity', async () => fixture(async path => {
+  const second = path + '.second', third = path + '.third';
+  await writeFile(path, meta); await writeFile(second, meta); await writeFile(third, meta);
+  let paths = [path, second];
+  const reader = new RolloutReader([], async () => paths);
+  assert.deepEqual((await reader.call('thread/loaded/list', {}) as {data:string[]}).data, []);
+  paths = [third];
+  assert.deepEqual((await reader.call('thread/loaded/list', {}) as {data:string[]}).data, []);
+  assert.match(reader.healthMessage!, /3 rollout file/);
+}));
+
+test('discovery churn is bounded across polls', async () => fixture(async path => {
+  let paths = Array.from({length: 1000}, (_, i) => `${path}-${i}`);
+  const reader = new RolloutReader([], async () => paths);
+  await reader.call('thread/loaded/list', {});
+  paths = [path + '-new'];
+  await assert.rejects(reader.call('thread/loaded/list', {}), /Cumulative rollout discovery limit/);
+}));
+
+test('changed cwd or parent for the same identity quarantines the file', async () => fixture(async path => {
+  for (const changed of [
+    {id: 'synthetic-id', cwd: '/synthetic/other', parent_thread_id: 'synthetic-parent'},
+    {id: 'synthetic-id', cwd: '/synthetic/project', parent_thread_id: 'other-parent'},
+  ]) {
+    await writeFile(path, meta + line('session_meta', changed));
+    const reader = new RolloutReader([path]);
+    assert.deepEqual((await reader.call('thread/loaded/list', {}) as {data:string[]}).data, []);
+    assert.match(reader.healthMessage!, /quarantined/);
+  }
+}));

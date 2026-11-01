@@ -178,7 +178,7 @@ test('missing reader generation preserves base metadata while capability stays u
 test('connected message reflects handoff support initially and after metadata updates',async t=>{
   const h=harness(); h.snapshot.connection.message='Live metadata only.';
   const adapter=await setup(h); t.after(()=>adapter.stop());
-  const message='Live agent metadata and observed message exchanges. Detailed activity and requests are unavailable.';
+  const message='Live agent metadata, completed command activity and observed message exchanges. Request details unavailable.';
   assert.equal((await adapter.initialSnapshot()).connection.message,message);
   h.emit({protocolVersion:1,bridgeEpoch:'base',seq:1,eventId:'metadata-connected',occurredAt:at,source:'codex',
     type:'connection.changed',agentId:null,data:{connection:{status:'connected',lastObservedAt:at,message:'Metadata refresh only.'}}});
@@ -188,6 +188,58 @@ test('connected message reflects handoff support initially and after metadata up
   h.fail('a'); await delay();
   assert.equal((await adapter.initialSnapshot()).connection.message,'Metadata refresh only.');
   assert.equal((await adapter.initialSnapshot()).capabilities.observeHandoffs.supported,false);
+});
+
+test('completed commands add bounded private-safe recent activity without changing current work or replaying history', async t => {
+  const command = (id: string, status = 'completed') => ({ type: 'commandExecution', id, status,
+    command: 'SYNTHETIC_PRIVATE_COMMAND', aggregatedOutput: 'SYNTHETIC_PRIVATE_OUTPUT' });
+  const h = harness();
+  h.snapshot.agents[0].runtimeState = 'idle';
+  h.items.set('a', [command('old'), command('in-progress', 'inProgress')]);
+  h.items.set('outside', [command('out-of-scope')]);
+  const adapter = await setup(h); t.after(() => adapter.stop());
+  assert.deepEqual((await adapter.initialSnapshot()).agents.find(a => a.agentId === 'a')!.recentActivity, []);
+  h.items.set('a', [command('old'), command('in-progress', 'inProgress'), command('fresh', 'failed')]);
+  await delay();
+  let current = (await adapter.initialSnapshot()).agents.find(a => a.agentId === 'a')!;
+  assert.equal(current.recentActivity.length, 1);
+  assert.equal(current.recentActivity[0].summary, 'Ran a command.');
+  assert.equal(current.recentActivity[0].sourceItemId, null);
+  assert.equal(current.runtimeState, 'idle');
+  assert.equal(current.activityKind, 'unknown');
+  assert.equal(h.events.some(e => e.type === 'agent.activity'), false);
+  const originalActivity = current.recentActivity[0];
+  const count = h.events.length;
+  await delay(); assert.equal(h.events.length, count, 'poll replay is silent');
+  h.emit({ protocolVersion: 1, bridgeEpoch: 'base', seq: 1, eventId: 'metadata', occurredAt: at, source: 'codex',
+    type: 'agent.upserted', agentId: 'a', data: { agent: { ...agent('a'), runtimeState: 'waiting-for-approval', task: 'Observed task' } } });
+  current = (await adapter.initialSnapshot()).agents.find(a => a.agentId === 'a')!;
+  assert.deepEqual(current.recentActivity, [originalActivity]);
+  assert.equal(current.runtimeState, 'waiting-for-approval');
+  assert.equal(current.activityKind, 'unknown');
+
+  h.reconnect();
+  h.items.set('a', [command('old'), command('fresh', 'failed'), command('while-away')]);
+  await delay();
+  assert.deepEqual((await adapter.initialSnapshot()).agents.find(a => a.agentId === 'a')!.recentActivity, [originalActivity]);
+  h.items.set('a', [command('old'), command('fresh', 'failed'), command('while-away'),
+    ...Array.from({ length: 55 }, (_, i) => command(`after-${i}`))]);
+  await delay();
+  current = (await adapter.initialSnapshot()).agents.find(a => a.agentId === 'a')!;
+  assert.equal(current.recentActivity.length, 50);
+  assert.equal(new Set(current.recentActivity.map(activity => activity.activityId)).size, 50);
+  assert.equal(current.runtimeState, 'waiting-for-approval');
+  assert.equal(current.activityKind, 'unknown');
+  assert.equal(h.events.some(e => e.agentId === 'outside'), false);
+
+  h.items.set('late', [command('late-history')]);
+  h.emit({ protocolVersion: 1, bridgeEpoch: 'base', seq: 2, eventId: 'late-agent', occurredAt: at, source: 'codex',
+    type: 'agent.upserted', agentId: 'late', data: { agent: agent('late') } });
+  await delay();
+  assert.deepEqual((await adapter.initialSnapshot()).agents.find(a => a.agentId === 'late')!.recentActivity, []);
+  const serialized = JSON.stringify([h.events, await adapter.initialSnapshot()]);
+  assert.equal(serialized.includes('SYNTHETIC_PRIVATE'), false);
+  assert.equal(serialized.includes('out-of-scope'), false);
 });
 
 test('capacity exhaustion during initial history fails closed and preserves metadata', async t => {

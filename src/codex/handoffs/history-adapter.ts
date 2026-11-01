@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { OfficeAdapter } from '../../server/adapter.js';
-import { unsupported, type OfficeEvent, type OfficeSnapshot } from '../../shared/contract.js';
+import { unsupported, type ActivityEntry, type OfficeEvent, type OfficeSnapshot } from '../../shared/contract.js';
+import { ActivityNormalizer } from '../activity/normalizer.js';
 import { HandoffNormalizer } from './normalizer.js';
 
 /** A separately owned passive reader. It must never create/resume/interrupt agent work. */
@@ -25,7 +26,13 @@ type Row = Record<string, unknown>;
 const object = (value: unknown): value is Row => !!value && typeof value === 'object' && !Array.isArray(value);
 const liveAgent = (state: OfficeSnapshot, id: string) => state.agents.some(a =>
   a.agentId === id && a.runtimeState !== 'unknown' && a.runtimeState !== 'closed' && a.runtimeState !== 'error');
-const handoffConnectionMessage = 'Live agent metadata and observed message exchanges. Detailed activity and requests are unavailable.';
+const handoffConnectionMessage = 'Live agent metadata, completed command activity and observed message exchanges. Request details unavailable.';
+const activityUnavailableMessage = 'Live agent metadata and observed message exchanges. Completed command activity and request details are unavailable.';
+const mergeActivity = (entries: readonly ActivityEntry[]): ActivityEntry[] => {
+  const seen = new Set<string>();
+  return entries.filter(entry => !seen.has(entry.activityId) && !!seen.add(entry.activityId))
+    .sort((a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt)).slice(0, 50);
+};
 
 /**
  * Optional composition seam, not a transport. The caller is responsible for
@@ -38,6 +45,7 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
   if (!options.sourceNamespace.trim() || options.sourceNamespace.trim() !== options.sourceNamespace) throw new Error('A stable source namespace is required.');
   const now = options.now ?? (() => new Date().toISOString());
   const normalizer = new HandoffNormalizer();
+  const activityNormalizer = new ActivityNormalizer();
   const listeners = new Set<(event: OfficeEvent) => void>();
   const queued: OfficeEvent[] = [];
   const baselined = new Set<string>();
@@ -46,6 +54,7 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
   let generation = options.reader.generation;
   let stopped = false, timer: ReturnType<typeof setTimeout> | undefined;
   let enabled = false, sourceFailed = false, baseFailed = false;
+  let activityUnavailable = false;
   let baseConnectionMessage: string | null = null;
   function failHistorySource(reason = 'History reader failed; reopen Office to retry.') {
     if (!state || sourceFailed) return;
@@ -60,6 +69,14 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
       data: { connection: { ...state.connection, message: baseConnectionMessage } } });
   }
   const wrapEpoch = 'history-' + randomUUID();
+  const connectedMessage = () => activityUnavailable ? activityUnavailableMessage : handoffConnectionMessage;
+  function failActivitySource() {
+    if (activityUnavailable) return;
+    activityUnavailable = true;
+    if (enabled && state?.connection.status === 'connected') publish({ protocolVersion: 1, bridgeEpoch: wrapEpoch, seq: 0,
+      eventId: randomUUID(), occurredAt: now(), source: 'codex', type: 'connection.changed', agentId: null,
+      data: { connection: { ...state.connection, message: connectedMessage() } } });
+  }
 
   function publish(input: OfficeEvent) {
     if (!state || stopped) return;
@@ -69,7 +86,12 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
     const data = event.data;
     switch (event.type) {
       case 'project.upserted': state.projects = [...state.projects.filter(p => p.projectId !== event.data.project.projectId), event.data.project]; break;
-      case 'agent.upserted': state.agents = [...state.agents.filter(a => a.agentId !== event.data.agent.agentId), event.data.agent]; break;
+      case 'agent.upserted': {
+        const previous = state.agents.find(a => a.agentId === event.data.agent.agentId);
+        event.data.agent.recentActivity = mergeActivity([...event.data.agent.recentActivity, ...previous?.recentActivity ?? []]);
+        state.agents = [...state.agents.filter(a => a.agentId !== event.data.agent.agentId), event.data.agent];
+        break;
+      }
       case 'agent.state.changed': state.agents = state.agents.map(a => a.agentId === event.agentId ? { ...a, runtimeState: event.data.runtimeState } : a); break;
       case 'agent.closed': state.agents = state.agents.map(a => a.agentId === event.agentId ? { ...a, runtimeState: 'closed' } : a); break;
       case 'agent.activity': state.agents = state.agents.map(a => a.agentId === event.agentId ? { ...a, activityKind: event.data.activity.kind, lastObservedAt: event.occurredAt, recentActivity: [event.data.activity, ...a.recentActivity.filter(x => x.activityId !== event.data.activity.activityId)].slice(0, 50) } : a); break;
@@ -78,7 +100,7 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
       case 'handoff.observed': state.recentHandoffs = [event.data.handoff, ...state.recentHandoffs.filter(h => h.handoffId !== event.data.handoff.handoffId)].slice(0, 50); break;
       case 'capabilities.changed': state.capabilities = { ...event.data.capabilities, observeHandoffs: state.capabilities.observeHandoffs }; event.data.capabilities = structuredClone(state.capabilities); break;
       case 'connection.changed':
-        if (enabled && event.data.connection.status === 'connected') event.data.connection = { ...event.data.connection, message: handoffConnectionMessage };
+        if (enabled && event.data.connection.status === 'connected') event.data.connection = { ...event.data.connection, message: connectedMessage() };
         state.connection = event.data.connection;
         break;
       case 'presentation.changed': state.presentation = { state: event.data.state, canSkip: event.data.canSkip }; state.officeSessionId = event.data.officeSessionId; break;
@@ -134,6 +156,22 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
           for (const turn of response.thread.turns) {
             if (!object(turn) || typeof turn.id !== 'string' || !Array.isArray(turn.items)) continue;
             for (const item of turn.items) {
+              if (object(item) && item.type === 'commandExecution' && !activityUnavailable
+                && (item.status === 'completed' || item.status === 'failed')) {
+                const result = activityNormalizer.observe({ source: 'codex', sourceNamespace: options.sourceNamespace,
+                  threadId, turnId: turn.id, agentId: threadId, observedAt: now(),
+                  delivery: history || !enabled || !liveAgent(state, threadId) ? 'history' : 'live',
+                  event: { method: 'item/completed', params: { threadId, turnId: turn.id, item } } });
+                if (result.kind === 'unavailable') failActivitySource();
+                if (result.kind === 'observed') {
+                  const agent = state.agents.find(agent => agent.agentId === threadId)!;
+                  // A completed record is recent history, not evidence of current
+                  // work. An upsert preserves the observed runtime/activity kind.
+                  publish({ protocolVersion: 1, bridgeEpoch: wrapEpoch, seq: 0, eventId: result.activity.activityId,
+                    occurredAt: result.activity.occurredAt, source: 'codex', type: 'agent.upserted', agentId: threadId,
+                    data: { agent: { ...agent, recentActivity: mergeActivity([result.activity, ...agent.recentActivity]) } } });
+                }
+              }
               if (!object(item) || item.type !== 'subAgentActivity' || item.kind !== 'interacted' || typeof item.agentThreadId !== 'string') continue;
               // If either participant leaves the scoped roster, seed without presenting later.
               const delivery = history || !enabled || !liveAgent(state, threadId) || !liveAgent(state, item.agentThreadId) ? 'history' : 'live';
@@ -157,7 +195,7 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
         if (enabled || sourceFailed || !state || baselined.size === 0 || state.connection.status !== 'connected') return;
         enabled = true;
         state.capabilities.observeHandoffs = { supported: true, reason: 'Verified passive history reader.' };
-        state.connection = { ...state.connection, message: handoffConnectionMessage };
+        state.connection = { ...state.connection, message: connectedMessage() };
         if (notify) publish({ protocolVersion: 1, bridgeEpoch: wrapEpoch, seq: 0, eventId: randomUUID(),
           occurredAt: now(), source: 'codex', type: 'capabilities.changed', agentId: null,
           data: { capabilities: structuredClone(state.capabilities) } });

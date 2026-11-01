@@ -22,10 +22,10 @@ test('discovers new rollout files beneath the root in stable order', async () =>
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test('rejects relative roots and treats a missing root as empty', async () => {
+test('rejects relative and missing roots', async () => {
   await assert.rejects(discoverRollouts('relative'));
   const root = await mkdtemp(join(tmpdir(), 'rollout-discovery-'));
-  try { assert.deepEqual(await discoverRollouts(join(root, 'missing')), []); }
+  try { await assert.rejects(discoverRollouts(join(root, 'missing'))); }
   finally { await rm(root, { recursive: true, force: true }); }
 });
 

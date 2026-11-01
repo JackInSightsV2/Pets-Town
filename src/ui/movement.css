@@ -1,0 +1,7 @@
+/* Presentation moves the view only; observed runtime state stays unchanged. */
+.office-scene[data-presentation="ready"] .scene-agent{transition:none}
+.office-scene .scene-agent[data-motion="arriving"]{transition:none;animation:office-arrive 1100ms ease-in-out var(--arrival-delay,0ms) both}
+@keyframes office-arrive{from{left:var(--entrance-x);top:var(--entrance-y)}to{left:var(--standup-x);top:var(--standup-y)}}
+.scene-runtime-error{position:absolute;left:9px;top:2px;z-index:2;display:grid;place-items:center;width:18px;height:18px;border-radius:50%;background:#a34935;border:1px solid #fff5e4;color:#fff7ed;font-size:15px;font-weight:800;line-height:1;box-shadow:0 2px 4px #56281d30}
+.office-scene .scene-agent[data-runtime-state="error"] .scene-agent-label{border-color:#a6634d;color:#934b38;background:#fff0e5}
+@media(prefers-reduced-motion:reduce){.office-scene .scene-agent[data-motion="arriving"]{animation:none;transition:none}}
