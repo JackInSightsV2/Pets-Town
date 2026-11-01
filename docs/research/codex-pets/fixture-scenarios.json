@@ -1,0 +1,50 @@
+{
+  "kind": "office-v1-fixture-scenario-plan",
+  "evidence": "Synthetic scenario plan only; not serialized API events or live acceptance evidence",
+  "baselineCommit": "ddd4163bea84af84deb5af317498c7a2fa17867e",
+  "requiresContractDecisions": [
+    "initial SSE cursor",
+    "fixture-mode labeling",
+    "exact event payloads",
+    "replay-miss/new-epoch signal"
+  ],
+  "roster": [
+    {
+      "agentId": "fixture-thread-main-a",
+      "projectId": "fixture-project-a",
+      "parentAgentId": null
+    },
+    {
+      "agentId": "fixture-thread-child-a",
+      "projectId": "fixture-project-a",
+      "parentAgentId": "fixture-thread-main-a"
+    },
+    {
+      "agentId": "fixture-thread-main-b",
+      "projectId": "fixture-project-b",
+      "parentAgentId": null
+    }
+  ],
+  "scenarioOrder": [
+    "snapshot of existing agents",
+    "presentation start while live updates continue",
+    "activity and waiting-for-approval",
+    "request opened with reply unsupported",
+    "same request resolved elsewhere",
+    "source-correlated handoff observed",
+    "successful work completion leaving session idle",
+    "disconnection preserving last known agent state",
+    "reconnection and ordered catch-up",
+    "presentation reset without runtime mutation"
+  ],
+  "negativeCases": [
+    "duplicate replay cannot duplicate handoff animation",
+    "sequence gap requires recovery",
+    "new epoch requires fresh snapshot",
+    "late old-presentation callback is ignored",
+    "failed or interrupted work cannot celebrate",
+    "request acknowledgement cannot clear attention",
+    "hidden handoff participant stays hidden",
+    "unsupported observer cannot manufacture agents or exchanges"
+  ]
+}
