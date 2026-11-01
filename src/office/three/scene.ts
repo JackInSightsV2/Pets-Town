@@ -14,6 +14,8 @@ import {
 import { buildVenue } from "./venue";
 import { createVenueDisplay } from "./render";
 import { advancePoint } from "./movement";
+import type { CelebrationRun } from "./celebration";
+import { demoActivity, isDemoAgent } from "./demo";
 import { meetingPoints } from "./layout";
 import {
   createVenuePlacement,
@@ -24,10 +26,13 @@ import {
 } from "./navigation";
 
 export interface VenueSceneProps extends OfficeSceneProps {
+  demoStep?: number;
+  celebration?: CelebrationRun;
   lifecycles?: readonly SpriteLifecycle[];
   onLifecycleComplete?: (token: LifecycleToken) => unknown;
 }
 interface Pet {
+  celebrationId?: string;
   lifecycle?: SpriteLifecycle;
   lifecycleKey: string;
   lifecycleSince: number;
@@ -219,7 +224,8 @@ export function createVenueScene(
     };
     label.onpointerdown = (e) => e.stopPropagation();
     labels.append(label);
-    const origin = nearestFloor({ x: -8.7, z: 0.4 });
+    const demo = demoActivity(agent.agentId, props.demoStep ?? 0);
+    const origin = nearestFloor(demo && !props.celebration ? demo : { x: -8.7, z: 0.4 });
     const p: Pet = {
       agent,
       asset,
@@ -272,7 +278,7 @@ export function createVenueScene(
       const life = lifecycles.get(agent.agentId);
       return life?.visible !== false && (agent.runtimeState !== "closed" || life?.phase === "dying");
     });
-    placement.map(next.snapshot?.agents ?? []);
+    placement.map((next.snapshot?.agents ?? []).filter(agent => !isDemoAgent(agent.agentId)));
     const ids = new Set(
       visible
         .map((a) => a.agentId),
@@ -294,6 +300,12 @@ export function createVenueScene(
       }
       p ??= add(agent, asset);
       p.agent = agent;
+      if (isDemoAgent(agent.agentId) && next.celebration && p.celebrationId !== next.celebration.id) {
+        p.celebrationId = next.celebration.id;
+        const origin = nearestFloor({ x: -8.7, z: 0.4 });
+        p.position.set(origin.x, 0.06, origin.z); p.target = origin; p.path = [];
+        overrides.delete(agent.agentId);
+      }
       p.lifecycle = lifecycles.get(agent.agentId);
       const key = p.lifecycle?.token ? JSON.stringify(p.lifecycle.token) : "";
       if (key !== p.lifecycleKey) {
@@ -333,7 +345,7 @@ export function createVenueScene(
       );
       p.label.dataset.lifecyclePhase = p.lifecycle?.phase ?? "unknown";
       p.label.dataset.petWidth = String(width);
-      const sleeping = !alert && (p.lifecycle?.phase === "sleeping" || (agent.runtimeState === "idle" && !["dying", "entering", "leaving"].includes(p.lifecycle?.phase ?? "")));
+      const sleeping = !(isDemoAgent(agent.agentId) && next.celebration) && !alert && (p.lifecycle?.phase === "sleeping" || (agent.runtimeState === "idle" && !["dying", "entering", "leaving"].includes(p.lifecycle?.phase ?? "")));
       p.label.dataset.idleSleep = String(sleeping);
       if (sleeping) {
         const sleep = document.createElement("span");
@@ -342,6 +354,8 @@ export function createVenueScene(
         sleep.className = "venue-sleep";
         p.label.append(sleep);
       }
+      p.label.dataset.celebration = isDemoAgent(agent.agentId) ? next.celebration?.phase ?? "idle" : "idle";
+      p.label.dataset.demo = String(isDemoAgent(agent.agentId));
       p.label.dataset.state = agent.runtimeState;
       p.label.dataset.runtimeState = agent.runtimeState;
     }
@@ -367,6 +381,12 @@ export function createVenueScene(
     }
   }
   function destination(p: Pet, index: number): FloorPoint {
+    const demo = demoActivity(p.agent.agentId, props.demoStep ?? 0);
+    if (demo) {
+      if (props.celebration?.phase === 'leaving') return nearestFloor({ x: -8.7, z: 0.4 });
+      if (props.celebration) return nearestFloor(demo);
+      return overrides.get(p.agent.agentId) ?? nearestFloor(demo);
+    }
     if (p.lifecycle?.phase === "dying" || p.lifecycle?.phase === "sleeping" || props.observerConnected === false || props.snapshot?.connection.status !== "connected")
       return { x: p.position.x, z: p.position.z };
     if (p.lifecycle?.phase === "leaving") return nearestFloor({ x: -8.7, z: 0.4 });
@@ -426,11 +446,15 @@ export function createVenueScene(
       const phase = p.lifecycle?.phase;
       const visualState = p.lifecycle?.status === "started" && p.agent.runtimeState === "unknown" ? "working" : p.agent.runtimeState;
       const lifecycleAnimation = phase === "dying" ? "failed" : phase === "sleeping" ? "waiting" : null;
+      const demo = demoActivity(p.agent.agentId, props.demoStep ?? 0);
+      const demoAnimation = demo ? props.celebration?.phase === 'cheering' ? (demo.phase % 2 ? 'waving' : 'jumping')
+        : props.celebration?.phase === 'working' ? 'review' : demo.animation : null;
       const anim = lifecycleAnimation && p.asset.animations[lifecycleAnimation]
         ? p.asset.animations[lifecycleAnimation]
         : moving
         ? (p.asset.animations[dx < 0 ? "running-left" : "running-right"] ??
           animationFor(p.asset, visualState))
+        : demoAnimation && p.asset.animations[demoAnimation] ? p.asset.animations[demoAnimation]
         : props.snapshot?.presentation.state === "standup"
           ? (p.asset.animations.waving ??
             animationFor(p.asset, visualState))
@@ -439,7 +463,7 @@ export function createVenueScene(
       const f = reduced ? 0 : phase === "dying"
         ? Math.min(anim.frames - 1, Math.floor(elapsed / 1000 * anim.fps))
         : Math.floor((now / 1000) * anim.fps) % anim.frames;
-      p.label.dataset.animation = lifecycleAnimation ?? (moving ? "running" : "");
+      p.label.dataset.animation = lifecycleAnimation ?? (moving ? "running" : demoAnimation ?? "");
       const finished = phase === "dying" ? elapsed >= (reduced ? 100 : anim.frames / anim.fps * 1000)
         : (phase === "entering" || phase === "leaving") && !moving;
       if (finished && p.lifecycle?.token && p.completedKey !== p.lifecycleKey && props.observerConnected !== false && props.snapshot?.connection.status === "connected") {

@@ -255,3 +255,17 @@
 .venue-source.is-stale:before {
   background: #c7893d;
 }
+
+.venue-demo-badge{align-self:flex-start;margin-top:7px;padding:3px 7px;border:1px solid #c5ad75;border-radius:5px;background:#fff3ce;color:#705623;font:600 10px/1.3 system-ui;letter-spacing:0}
+.venue-pet-label[data-demo="true"]{border-style:dashed!important}
+.venue-demo-details{position:absolute;z-index:6;left:20px;bottom:65px;max-width:min(330px,calc(100% - 40px));padding:16px;background:#fffdf3f5;border:1px solid #c5ad75;border-radius:10px;box-shadow:0 8px 24px #263b2a24}
+.venue-demo-details strong,.venue-demo-details small{display:block;padding-right:24px}
+.venue-demo-details small{font-size:10px;color:#715d36;margin-top:4px}
+.venue-demo-details p{font-size:12px;margin-top:9px}
+.venue-demo-details button{position:absolute;right:8px;top:8px;border:0;background:transparent;font-size:18px}
+
+.venue-confetti{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:4}
+.venue-celebration-banner{position:absolute;left:50%;top:35%;transform:translateX(-50%);padding:12px 20px;border-radius:12px;background:#fff6daee;color:#4c634c;font:700 22px/1.3 system-ui;box-shadow:0 5px 25px #273b2922;white-space:nowrap}
+.venue-confetti i{position:absolute;left:var(--confetti-x);top:-20px;width:8px;height:14px;background:var(--confetti-colour);animation:venue-confetti-burst 1.7s ease-out var(--confetti-delay) infinite}
+@keyframes venue-confetti-burst{from{transform:translate(0,0) rotate(0deg);opacity:1}to{transform:translate(var(--confetti-drift),75vh) rotate(520deg);opacity:0}}
+@media(prefers-reduced-motion:reduce){.venue-confetti i{display:none;animation:none}.venue-celebration-banner{font-size:18px}}

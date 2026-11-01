@@ -77,7 +77,7 @@ export function App({ store, onPresentationAction }: AppProps) {
     if (!(event.target instanceof Element) || !event.target.closest('.scene-agent, .pet-details')) store.selectAgent(null);
   }}>
     {!use3D && <button className="view-switch-3d" onClick={() => setUse3D(true)}>3D venue</button>}
-    <Scene onUse2D={() => setUse3D(false)} connectionLabel={connectionView(state).label} connectionStale={connectionView(state).stale} observerConnected={state.transport.status === 'connected'} geometry={officeGeometry} snapshot={sceneSnapshot} selectedAgentId={selectedAgentId} visibleAgents={visibleAgents}
+    <Scene onClearSelection={() => store.selectAgent(null)} onUse2D={() => setUse3D(false)} connectionLabel={connectionView(state).label} connectionStale={connectionView(state).stale} observerConnected={state.transport.status === 'connected'} geometry={officeGeometry} snapshot={sceneSnapshot} selectedAgentId={selectedAgentId} visibleAgents={visibleAgents}
       onSelectAgent={(agentId, point) => { if (point) setAnchor(point); store.selectAgent(agentId); }}
       meeting={meetings.active} onMeetingComplete={store.completeMeeting} />
     {hasFixtureData(snapshot) && <span className="canvas-fixture-label" data-testid="fixture-banner">Fixture data</span>}

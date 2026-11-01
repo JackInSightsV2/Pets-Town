@@ -13,10 +13,11 @@ export function readOfficeView(result: unknown): OfficeView | null {
     || view.snapshot.controlToken !== undefined
     || !(view.selectedAgentId === null || typeof view.selectedAgentId === 'string')
     || !(view.projectId === null || typeof view.projectId === 'string')) return null;
-  return { snapshot: view.snapshot, scopeId: view.scopeId, selectedAgentId: view.selectedAgentId, projectId: view.projectId };
+  return { snapshot: view.snapshot, scopeId: view.scopeId, selectedAgentId: view.selectedAgentId, projectId: view.projectId, ...(typeof view.celebrationId === 'string' && view.celebrationId.length > 0 && view.celebrationId.length <= 128 ? { celebrationId: view.celebrationId } : {}) };
 }
 
 export interface EmbeddedState {
+  celebrationId?: string;
   ready: boolean;
   message: string | null;
   contextMessage: string | null;
@@ -27,7 +28,7 @@ export interface EmbeddedState {
 }
 const clip = (value: string | null | undefined, max = 800) => value?.slice(0, max) ?? null;
 
-export function createEmbeddedController(app = new App({ name: 'PetsTown', version: '0.1.6' }, {
+export function createEmbeddedController(app = new App({ name: 'PetsTown', version: '0.1.8' }, {
   availableDisplayModes: ['inline', 'fullscreen', 'pip'],
 })) {
   const lifecycle = createLifecycleStore();
@@ -138,7 +139,7 @@ export function createEmbeddedController(app = new App({ name: 'PetsTown', versi
       const desired = initial ? next.selectedAgentId : oldSelected;
       store.selectAgent(next.snapshot.agents.some(agent => agent.agentId === desired && agent.runtimeState !== 'closed') ? desired : null);
       store.setTransportStatus('connected');
-      publish({ message: null });
+      publish({ message: null, ...(initial && next.celebrationId ? { celebrationId: next.celebrationId } : {}) });
       return true;
     } finally { applying = false; void sendContext(); }
   }

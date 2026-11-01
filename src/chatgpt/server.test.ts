@@ -51,7 +51,7 @@ test('MCP initialize, resource, tools, live refresh, restart rejection and read-
   try {
     await app.server.connect(serverTransport); await client.connect(clientTransport);
     const tools = await client.listTools();
-    assert.deepEqual(tools.tools.map(t => t.name), ['show_office', 'refresh_office', 'inspect_agent']);
+    assert.deepEqual(tools.tools.map(t => t.name), ['show_office', 'celebrate', 'refresh_office', 'inspect_agent']);
     assert.ok(tools.tools.every(t => t.annotations?.readOnlyHint === true));
     assert.equal(opened, 0, 'initialization must not wait for the observer');
     const html = await client.readResource({ uri: OFFICE_RESOURCE_URI });
@@ -92,4 +92,28 @@ test('project filters use separate cursor scopes', () => {
   input.projects.push({ projectId: 'second', displayName: 'Second', cwd: '/project' });
   assert.notEqual(officeView(input, ['/project'], { projectId: input.projects[0].projectId }).scopeId,
     officeView(input, ['/project'], { projectId: 'second' }).scopeId);
+});
+
+test('celebrate returns a fresh view-local trigger without adding fake source agents', async () => {
+  const current = snapshot();
+  const before = structuredClone(current);
+  const app = createChatgptServer({ allowedCwds: ['/project'], readHtml: async () => '<html>office</html>',
+    source: async () => ({ getSnapshot: () => current, close: async () => {} }) });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: 'celebration-test', version: '1' });
+  try {
+    await app.server.connect(serverTransport); await client.connect(clientTransport);
+    const first = await client.callTool({ name: 'celebrate', arguments: {} });
+    const second = await client.callTool({ name: 'celebrate', arguments: {} });
+    const a = first._meta?.office as { celebrationId: string; snapshot: { agents: unknown[] } };
+    const b = second._meta?.office as typeof a;
+    assert.match(a.celebrationId, /^[a-f0-9-]{36}$/);
+    assert.notEqual(a.celebrationId, b.celebrationId);
+    assert.equal(a.snapshot.agents.length, 1);
+    assert.deepEqual(current, before);
+    assert.equal(JSON.stringify(first.structuredContent).includes('petstown-demo:'), false);
+    const refresh = await client.callTool({ name: 'show_office', arguments: {} });
+    assert.equal((refresh._meta?.office as typeof a).celebrationId, undefined);
+    assert.equal((await client.callTool({ name: 'celebrate', arguments: { projectId: 'private' } })).isError, true);
+  } finally { await client.close(); await app.close(); }
 });

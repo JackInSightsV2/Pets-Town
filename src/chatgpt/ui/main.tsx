@@ -57,7 +57,7 @@ function EmbeddedOffice({ controller }: { controller: EmbeddedController }) {
     {snapshot && stale && <p className="embedded-notice" role="status">{snapshot.connection.message ?? 'Live observation is unavailable. These details may have changed.'}</p>}
     <div ref={sceneContainer} className="embedded-scene" style={{ '--scene-scale': sceneScale, '--scene-height': `${officeGeometry.canvas!.height * sceneScale}px` } as CSSProperties}>
       {!use3D && <button className="view-switch-3d" onClick={() => setUse3D(true)}>3D venue</button>}
-      {snapshot && <Scene embedded onUse2D={() => setUse3D(false)} geometry={officeGeometry} autoFrame={false} observerConnected={!stale} snapshot={sceneSnapshot} selectedAgentId={state.selectedAgentId}
+      {snapshot && <Scene embedded celebrationId={host.celebrationId} onClearSelection={() => store.selectAgent(null)} onUse2D={() => setUse3D(false)} geometry={officeGeometry} autoFrame={false} observerConnected={!stale} snapshot={sceneSnapshot} selectedAgentId={state.selectedAgentId}
       visibleAgents={agents} onSelectAgent={store.selectAgent} meeting={meetings.active} onMeetingComplete={store.completeMeeting} />}</div>
     {snapshot && agents.length === 0 && <p className="embedded-empty">{stale ? 'No agents are available from the current source.' : 'No active agents in this project scope.'}</p>}
     {agents.length > 0 && snapshot && <div className="embedded-roster" aria-label="Agents">

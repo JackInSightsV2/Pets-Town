@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
 import { canonicalizeCwd } from '../codex/observer-normalization.js';
 import { lstat } from 'node:fs/promises';
-import { builtInPets } from '../shared/pets.js';
+import { officialPets } from '../shared/pets.js';
 import { createOfficeServer } from './server.js';
 import { createFixtureAdapter } from './fixture.js';
 import type { OfficeAdapter } from './adapter.js';
@@ -39,8 +39,7 @@ export async function loadAdapter(options: ReturnType<typeof readOptions>): Prom
 }
 export async function approvedLocalPetFiles(root=fileURLToPath(new URL('../../',import.meta.url))) {
   const files:Record<string,string>={};
-  for(const pet of builtInPets) {
-    if(!['codex','dewey','hoots'].includes(pet.assetId))continue;
+  for(const pet of officialPets) {
     const file=resolve(root,'.cache','pets',`${pet.assetId}.webp`);
     try {const info=await lstat(file);if(info.isFile()&&!info.isSymbolicLink())files[pet.assetId]=file;} catch { /* Missing cache retains the approved official CDN URL. */ }
   }
