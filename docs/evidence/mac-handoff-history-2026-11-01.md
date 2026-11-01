@@ -28,3 +28,18 @@ These seven new history records establish that fresh correlated interacted items
 Use a stable sourceNamespace identifying the verified runtime, distinct from a connection generation. Verify scoped sender and recipient, source item correlation, silent replay/reconnect, and one genuine new event reaching Office SSE and rendered once. Preserve neutral 'Sent a message.' summary; no transcript synthesis is required.
 
 C integration: this branch adds capabilities.changed propagation through server snapshots/SSE and client state, with cancellation of active/queued meetings on support loss. The PR #21 wrapper must emit this event when its history capability changes; its current internal snapshot mutation alone still cannot reach connected browsers. Metadata health remains separate. A real browser handoff and timed team demo remain unverified.
+
+## Supplemental daemon identity check
+
+
+A separate bounded read-only WebSocket connection to the same existing Unix control socket sent initialize and initialized only, extracted a version from result.userAgent, and closed its own connection. Only the sanitized version and field name were printed:
+
+```json
+{"daemonVersion":"0.166.0","field":"userAgent"}
+```
+
+This independently verifies the running daemon reports 0.166.0, matching the installed CLI version. No full handshake response, machine paths or account data were retained. The connection did not read turns or control agents.
+
+Cached repository source map (`docs/research/codex-pets/source-map.md`, opening paragraph) pins OpenAI source commit 67f0994b532b8740f14b5b738af7b7b2a915b1d6, dated 2026-10-31, and explicitly warns that the pin does not establish installed runtime parity. `protocol.md` records the same pin but its schema audit target was Windows0.158.0, with Mac0.166.0 previously reported separately. `src/codex/handoffs/normalizer.ts` documents the successful-send receipt semantics but does not identify a daemon build/source commit mapping.
+
+Therefore the daemon version gap is now closed, but the cached evidence does not by itself prove that source pin is the exact build/source mapping for 0.166.0. Required next evidence is the already-audited receipt handler/source revision mapped to daemon0.166.0 (or a targeted equivalent source audit). Do not turn sourceVerified on solely because a semver was recovered. No browsing, repository edits or Git mutations were performed for this supplemental check.
