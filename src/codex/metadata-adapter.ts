@@ -10,6 +10,7 @@ import { agentSemanticFingerprint, canonicalizeCwd, normalizeThreadMetadata } fr
 
 export interface MetadataReader {
   readonly connected: boolean;
+  readonly healthMessage?: string;
   call(method: 'thread/loaded/list' | 'thread/read' | 'thread/goal/get', params: Record<string, unknown>): Promise<unknown>;
   close(): void;
 }
@@ -140,7 +141,7 @@ export async function createMetadataAdapter(options: MetadataAdapterOptions): Pr
         if (!observed.has(previous.agentId)) upsert({ ...previous, runtimeState: 'unknown' });
       }
       connection({ status: 'connected', lastObservedAt: observedAt,
-        message: options.sourceDescription ?? 'Live metadata polling. Item activity, request details and handoffs are unavailable.' });
+        message: [options.sourceDescription ?? 'Live metadata polling. Item activity, request details and handoffs are unavailable.', rpc.healthMessage].filter(Boolean).join(' ') });
     } catch {
       if (stopped) return;
       rpc?.close(); rpc = null;

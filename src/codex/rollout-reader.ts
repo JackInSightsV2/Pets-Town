@@ -2,6 +2,7 @@ import { open } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
 import type { MetadataReader } from './metadata-adapter.js';
 import { MetadataRpcError } from './metadata-rpc.js';
+import { canonicalizeCwd } from './observer-normalization.js';
 
 const READ_CHUNK_BYTES = 64 * 1024;
 // Bound memory per record while accommodating large normal transcript records.
@@ -14,18 +15,24 @@ type Status = 'unknown' | 'active' | 'idle' | 'systemError';
 interface FileState {
   path: string; offset: number; prefix: Buffer; dev: number; ino: number;
   historicalEnd: number; lastSize: number; initial: boolean;
-  id?: string; cwd?: string; parent?: string; status: Status; turn?: string;
+  id?: string; cwd?: string; parent?: string; nickname?: string; status: Status; turn?: string;
 }
 
 /** Explicit existing rollout files only. No directory discovery, writes or transcript retention. */
 export class RolloutReader implements MetadataReader {
   connected = true;
   private readonly files: FileState[];
+  private readonly discover?: () => Promise<string[]>;
   private rows = new Map<string, FileState>();
+  private quarantined = new Set<FileState>();
+  get healthMessage(): string | undefined {
+    return this.quarantined.size ? `${this.quarantined.size} rollout file(s) quarantined; some sessions may be missing.` : undefined;
+  }
 
-  constructor(paths: readonly string[]) {
-    if (!paths.length || paths.length > MAX_PATHS || paths.some(p => !isAbsolute(p) || p.includes('\0')) || new Set(paths).size !== paths.length)
+  constructor(paths: readonly string[], discover?: () => Promise<string[]>) {
+    if ((!paths.length && !discover) || paths.length > MAX_PATHS || paths.some(p => !isAbsolute(p) || p.includes('\0')) || new Set(paths).size !== paths.length)
       throw new Error('Provide a bounded list of distinct absolute rollout paths.');
+    this.discover = discover;
     this.files = paths.map(path => ({ path, offset: 0, prefix: Buffer.alloc(0), dev: 0, ino: 0,
       historicalEnd: 0, lastSize: 0, initial: true, status: 'unknown' }));
   }
@@ -44,24 +51,36 @@ export class RolloutReader implements MetadataReader {
       throw new Error('Only metadata reads are supported.');
     const row = this.rows.get(params.threadId);
     if (!row || !row.id || !row.cwd) throw new Error('Thread not found.');
-    return { thread: { id: row.id, cwd: row.cwd, parentThreadId: row.parent ?? null,
+    return { thread: { id: row.id, cwd: row.cwd, parentThreadId: row.parent ?? null, agentNickname: row.nickname ?? null,
       status: row.status === 'active' ? { type: 'active', activeFlags: [] } : { type: row.status } } };
   }
 
   private async refresh(): Promise<void> {
-    try {
-      for (const file of this.files) await this.readFile(file);
-      const rows = new Map<string, FileState>();
-      for (const file of this.files) if (file.id && file.cwd) {
-        if (rows.has(file.id)) throw new Error('Duplicate rollout identity.');
-        rows.set(file.id, file);
-      }
-      this.rows = rows;
-    } catch {
-      this.connected = false;
-      this.rows.clear();
-      throw new Error('Could not safely read rollout metadata.');
+    if (this.discover) {
+      const paths = await this.discover();
+      if (paths.length > MAX_PATHS || paths.some(p => !isAbsolute(p) || p.includes('\0')) || new Set(paths).size !== paths.length)
+        throw new Error('Invalid discovered rollout paths.');
+      const known = new Set(this.files.map(file => file.path));
+      const additions = paths.filter(path => !known.has(path));
+      if (this.files.length + additions.length > MAX_PATHS) throw new Error('Cumulative rollout discovery limit exceeded; restart the observer.');
+      for (const path of additions) this.files.push({ path, offset: 0, prefix: Buffer.alloc(0), dev: 0, ino: 0,
+        historicalEnd: 0, lastSize: 0, initial: true, status: 'unknown' });
     }
+    for (const file of this.files) {
+      if (this.quarantined.has(file)) continue;
+      try { await this.readFile(file); } catch { this.quarantined.add(file); }
+    }
+    const identities = new Map<string, FileState[]>();
+    for (const file of this.files) if (file.id && file.cwd) {
+      const group = identities.get(file.id) ?? [];
+      group.push(file); identities.set(file.id, group);
+    }
+    const rows = new Map<string, FileState>();
+    for (const [id, group] of identities) {
+      if (group.length !== 1) { for (const file of group) this.quarantined.add(file); }
+      else if (!this.quarantined.has(group[0])) rows.set(id, group[0]);
+    }
+    this.rows = rows;
   }
 
   private async readFile(file: FileState): Promise<void> {
@@ -122,8 +141,8 @@ export class RolloutReader implements MetadataReader {
     const payload = record.payload;
     if (record.type === 'session_meta') {
       const id = str(payload.id), cwd = str(payload.cwd);
-      if (!id || !cwd || (file.id && file.id !== id)) throw new Error('Invalid session metadata.');
-      file.id = id; file.cwd = cwd; file.parent = str(payload.parent_thread_id);
+      if (!id || !cwd || (file.id && (file.id !== id || canonicalizeCwd(file.cwd) !== canonicalizeCwd(cwd) || file.parent !== str(payload.parent_thread_id)))) throw new Error('Invalid session metadata.');
+      file.id = id; file.cwd = cwd; file.parent = str(payload.parent_thread_id); file.nickname = str(payload.agent_nickname);
     } else if (record.type === 'event_msg') {
       const turn = str(payload.turn_id);
       switch (payload.type) {
@@ -131,7 +150,7 @@ export class RolloutReader implements MetadataReader {
           file.turn = turn; file.status = !turn || historical ? 'unknown' : 'active'; break;
         case 'task_complete': case 'turn_complete':
           if (!turn || (file.turn && file.turn !== turn)) { file.status = 'unknown'; break; }
-          file.turn = undefined; file.status = payload.error != null ? 'systemError' : 'idle'; break;
+          file.turn = undefined; file.status = historical ? 'unknown' : payload.error != null ? 'systemError' : 'idle'; break;
         case 'turn_aborted':
           file.turn = undefined; file.status = 'unknown'; break;
       }
