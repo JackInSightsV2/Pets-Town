@@ -4,9 +4,9 @@ import { createOfficeStore } from './store.js';
 import { event, snapshot } from './test-helpers.js';
 import { normalizeTurnLifecycle } from '../codex/lifecycle/normalizer.js';
 
-function observed(status = 'completed', agentId = 'main') {
+function observed(status = 'completed', agentId = 'main', turnId='synthetic-turn', startedAt:number|null=100) {
   const result = normalizeTurnLifecycle({source:'fixture',sourceNamespace:'test',threadId:agentId,agentId,delivery:'live',observedAt:'2026-01-01T00:00:00Z',format:'notification',
-    value:{method:status === 'inProgress'?'turn/started':'turn/completed',params:{threadId:agentId,turn:{id:'synthetic-turn',status,startedAt:100}}}});
+    value:{method:status === 'inProgress'?'turn/started':'turn/completed',params:{threadId:agentId,turn:{id:turnId,status,startedAt}}}});
   if(result.kind!=='observed')throw new Error('Invalid synthetic observation');
   return result.observation;
 }
@@ -29,4 +29,14 @@ test('unknown roster owners and mismatched source do not enter lifecycle snapsho
   store.applyEvent(event(2,'agent.turn.observed',{observation:wrong},{source:'codex'}));
   assert.equal(store.getState().snapshot?.latestTurns,undefined);
   assert.equal(store.getState().snapshot?.lastSeq,2);
+});
+test('stale and ambiguous cross-turn wire arrivals cannot corrupt a fresh reconnect snapshot',()=>{
+  for(const oldTime of [null,200,100]) {
+    const initial=snapshot();initial.latestTurns=[observed('inProgress','main','newer',200)];
+    const store=createOfficeStore(initial);
+    store.applyEvent(event(1,'agent.turn.observed',{observation:observed('completed','main','older',oldTime)}));
+    assert.deepEqual(store.getState().snapshot?.latestTurns,initial.latestTurns);
+    const fresh=createOfficeStore(store.getState().snapshot!);
+    assert.deepEqual(fresh.getState().snapshot?.latestTurns,initial.latestTurns);
+  }
 });

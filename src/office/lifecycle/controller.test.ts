@@ -12,7 +12,7 @@ const observation = (status: TurnLifecycleStatus, turnId = 'turn-a', extra: Part
   const result = normalizeTurnLifecycle({ source: 'fixture', sourceNamespace: 'synthetic-source', threadId: extra.agentId ?? 'agent-a', agentId: extra.agentId ?? 'agent-a',
     observedAt: '2026-01-01T00:00:00Z', delivery: 'live', format: 'notification', value: {
       method: status === 'started' ? 'turn/started' : 'turn/completed', params: { threadId: extra.agentId ?? 'agent-a', turn: {
-        id: turnId, status: { started: 'inProgress', succeeded: 'completed', failed: 'failed', interrupted: 'interrupted' }[status], startedAt: 100,
+        id: turnId, status: { started: 'inProgress', succeeded: 'completed', failed: 'failed', interrupted: 'interrupted' }[status], startedAt: turnId === 'turn-b' ? 200 : turnId === 'turn-c' ? 300 : 100,
       } },
     } });
   if (result.kind !== 'observed') throw new Error('Invalid synthetic observation.');
@@ -207,4 +207,14 @@ test('replayed source baseline settles an in-flight terminal despite semantic de
   controller.observe(observation('failed'),generation);const token=controller.drainEffects()[0].token;
   controller.observe(observation('failed','turn-a',{delivery:'history'}),generation);
   assert.equal(state().visible,false);assert.equal(controller.complete(token),false);assert.deepEqual(controller.drainEffects(),[]);
+});
+
+test('different-turn null and equal source starts cannot replace current presentation or bootstrap', () => {
+  for(const startedAt of [null,200]) {
+    const {controller,generation,state}=setup([observation('started','turn-b',{startedAt:200})]);
+    assert.equal(controller.observe(observation('started','ambiguous',{startedAt}),generation),'ignored');
+    controller.baseline({agents:[agent()],latestTurns:[observation('succeeded','old',{startedAt,delivery:'history'})],connected:true,presentation:'live'});
+    assert.equal(state().turnId,observation('started','turn-b').turnId);
+    assert.equal(state().status,'started');assert.deepEqual(controller.drainEffects(),[]);
+  }
 });

@@ -31,12 +31,17 @@ export function upsertLatestTurn(existing: TurnLifecycleObservation[] | undefine
   observation: TurnLifecycleObservation): TurnLifecycleObservation[];
 export function upsertLatestTurn(existing: readonly TurnLifecycleObservation[] | undefined,
   observation: TurnLifecycleObservation): readonly TurnLifecycleObservation[];
-/** Keep snapshot evidence monotonic without owning runtime state or replay history. */
+/** Keep snapshot evidence monotonic; different turns require strictly newer source start times. */
 export function upsertLatestTurn(existing: readonly TurnLifecycleObservation[] | undefined,
   observation: TurnLifecycleObservation): readonly TurnLifecycleObservation[] {
   const current = existing?.find(row => row.agentId === observation.agentId);
   if (current && (current.sourceEventId === observation.sourceEventId
     || (current.turnId === observation.turnId && current.status !== 'started' && current.status !== observation.status)
+    || (current.turnId !== observation.turnId && (current.startedAt === null || observation.startedAt === null
+      || observation.startedAt <= current.startedAt))
     || (current.startedAt !== null && observation.startedAt !== null && current.startedAt > observation.startedAt))) return existing!;
-  return [...(existing ?? []).filter(row => row.agentId !== observation.agentId), observation];
+  const latest = current?.turnId === observation.turnId
+    ? { ...observation, startedAt: observation.startedAt ?? current.startedAt }
+    : observation;
+  return [...(existing ?? []).filter(row => row.agentId !== observation.agentId), latest];
 }

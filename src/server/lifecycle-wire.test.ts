@@ -36,3 +36,12 @@ test('invalid lifecycle baseline is rejected before serving an invalid snapshot'
   const adapter:OfficeAdapter={initialSnapshot:()=>initial,subscribe(){return()=>{};},stop(){stopped=true;}};
   await assert.rejects(createOfficeServer({adapter}),/Invalid lifecycle snapshot/);assert.equal(stopped,true);
 });
+test('server snapshot cannot be replaced by an old turn with null or equal start time',async t=>{
+  let receive=(event:OfficeEvent)=>{};const initial=snapshot();
+  const newer={...turn(),turnId:`turn-v1-${'a'.repeat(64)}`,sourceEventId:`turn-event-v1-${'a'.repeat(64)}`,status:'started' as const,startedAt:200};
+  initial.latestTurns=[newer];
+  const adapter:OfficeAdapter={initialSnapshot:()=>initial,subscribe(listener){receive=listener;return()=>{};},stop(){}};
+  const server=await createOfficeServer({adapter});t.after(()=>server.close());
+  for(const [index,startedAt] of [null,200,100].entries())receive(event(index+1,'agent.turn.observed',{observation:{...turn(),startedAt}}));
+  const current=await(await fetch(server.url+'/api/office')).json();assert.deepEqual(current.latestTurns,[newer]);
+});

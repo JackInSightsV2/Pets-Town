@@ -102,9 +102,39 @@ test('latest-turn updates accept progress and newer turns while preserving other
   assert.deepEqual(upsertLatestTurn(undefined, started), [started]);
 });
 
-test('missing source start times do not imply a regressing or finished turn', () => {
-  const first = observation({ startedAt: null });
-  const later = observation({ turnId: `turn-v1-${'c'.repeat(64)}`, sourceEventId: `turn-event-v1-${'d'.repeat(64)}`, startedAt: null });
-  assert.deepEqual(upsertLatestTurn([first], later), [later]);
-  assert.equal(upsertLatestTurn([first], later)[0].status, 'started');
+test('different turns with missing or equal source start times cannot replace current evidence', () => {
+  for (const [currentStart, incomingStart] of [[null, null], [null, 11], [10, null], [10, 10]] as const) {
+    const existing = Object.freeze([observation({ startedAt: currentStart })]);
+    const incoming = observation({ turnId: `turn-v1-${'c'.repeat(64)}`, sourceEventId: `turn-event-v1-${'d'.repeat(64)}`,
+      status: 'succeeded', startedAt: incomingStart, occurredAt: '2026-11-01T14:00:00.000Z' });
+    assert.equal(upsertLatestTurn(existing, incoming), existing);
+  }
+});
+
+test('delayed old-turn observations cannot replace a newer turn', () => {
+  const oldTurn = observation({ startedAt: 10 });
+  const newTurn = observation({ turnId: `turn-v1-${'c'.repeat(64)}`, sourceEventId: `turn-event-v1-${'d'.repeat(64)}`, startedAt: 11 });
+  const latest = upsertLatestTurn([oldTurn], newTurn);
+  for (const startedAt of [10, null]) {
+    const delayed = { ...oldTurn, status: 'succeeded' as const, sourceEventId: `turn-event-v1-${'e'.repeat(64)}`,
+      startedAt, occurredAt: '2026-11-01T14:00:00.000Z' };
+    assert.equal(upsertLatestTurn(latest, delayed), latest);
+  }
+  assert.deepEqual(latest, [newTurn]);
+});
+
+test('same-turn terminal progress remains valid without source start times', () => {
+  const started = observation({ startedAt: null });
+  const succeeded = { ...started, status: 'succeeded' as const, sourceEventId: `turn-event-v1-${'c'.repeat(64)}` };
+  assert.deepEqual(upsertLatestTurn([started], succeeded), [succeeded]);
+});
+
+test('same-turn terminal updates retain an already observed start time when omitted', () => {
+  const started = observation({ startedAt: 100 });
+  const succeeded = { ...started, status: 'succeeded' as const, sourceEventId: `turn-event-v1-${'c'.repeat(64)}`, startedAt: null };
+  const completed = upsertLatestTurn([started], succeeded);
+  assert.deepEqual(completed, [{ ...succeeded, startedAt: 100 }]);
+  assert.equal(succeeded.startedAt, null);
+  const nextTurn = observation({ turnId: `turn-v1-${'d'.repeat(64)}`, sourceEventId: `turn-event-v1-${'e'.repeat(64)}`, startedAt: 101 });
+  assert.deepEqual(upsertLatestTurn(completed, nextTurn), [nextTurn]);
 });

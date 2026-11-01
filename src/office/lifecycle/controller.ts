@@ -28,6 +28,12 @@ type Entry = { observation: TurnLifecycleObservation | null; phase: LifecyclePha
 const clone = <T>(value: T): T => structuredClone(value);
 const tokenKey = (token: LifecycleToken) => JSON.stringify([token.generation, token.serial, token.agentId, token.turnId]);
 const waiting = (agent: OfficeAgent) => agent.pendingRequestIds.length > 0 || agent.runtimeState === 'waiting-for-input' || agent.runtimeState === 'waiting-for-approval';
+const ordered = (previous: TurnLifecycleObservation | null, incoming: TurnLifecycleObservation) => !previous
+  || (previous.turnId === incoming.turnId
+    ? !(previous.startedAt !== null && incoming.startedAt !== null && incoming.startedAt < previous.startedAt)
+    : previous.startedAt !== null && incoming.startedAt !== null && incoming.startedAt > previous.startedAt);
+const retainStart = (previous: TurnLifecycleObservation | null, incoming: TurnLifecycleObservation) =>
+  clone({ ...incoming, startedAt: incoming.startedAt ?? (previous?.turnId === incoming.turnId ? previous.startedAt : null) });
 
 /**
  * Presentation only. Never changes a runtime agent, request, selection or layout.
@@ -95,11 +101,11 @@ export function createTurnLifecycleController(options: { maxObservations?: numbe
         const previous = entry.observation;
         const terminal = terminals.get(observation.turnId);
         if (retiredTurns.has(observation.turnId) || (terminal && terminal !== observation.status)
-            || (previous?.startedAt != null && observation.startedAt != null && observation.startedAt < previous.startedAt)) continue;
+            || !ordered(previous, observation)) continue;
         const result = remember(observation);
         if (result === 'conflict' || result === 'full') continue;
         if (previous && previous.turnId !== observation.turnId) retiredTurns.add(previous.turnId);
-        entry.observation = clone(observation);
+        entry.observation = retainStart(previous, observation);
         if (observation.status !== 'started') terminals.set(observation.turnId, observation.status);
         settle(entry);
       }
@@ -133,12 +139,12 @@ export function createTurnLifecycleController(options: { maxObservations?: numbe
         const previous = entry.observation;
         const terminal = terminals.get(observation.turnId);
         if (retiredTurns.has(observation.turnId) || (terminal && terminal !== observation.status)
-            || (previous?.startedAt != null && observation.startedAt != null && observation.startedAt < previous.startedAt)) return 'ignored';
+            || !ordered(previous, observation)) return 'ignored';
         const result = remember(observation);
         if (result === 'conflict' || result === 'full') return 'unavailable';
         if (previous && previous.turnId !== observation.turnId) retiredTurns.add(previous.turnId);
         if (observation.status !== 'started') terminals.set(observation.turnId, observation.status);
-        entry.observation = clone(observation);
+        entry.observation = retainStart(previous, observation);
         effects = effects.filter(effect => effect.token.agentId !== observation.agentId);
         settle(entry);
         return 'applied';
@@ -150,7 +156,7 @@ export function createTurnLifecycleController(options: { maxObservations?: numbe
       const previous = entry.observation;
       const terminal = terminals.get(observation.turnId);
       if (retiredTurns.has(observation.turnId) || terminal) return 'ignored';
-      if (previous?.startedAt != null && observation.startedAt != null && observation.startedAt < previous.startedAt) return 'ignored';
+      if (!ordered(previous, observation)) return 'ignored';
       // Late completion from turn A must never hide the newly started turn B.
       // Missing starts must be reconciled through a settled latest-turn baseline.
       if (observation.status !== 'started' && previous?.turnId !== observation.turnId) return 'ignored';
@@ -158,7 +164,7 @@ export function createTurnLifecycleController(options: { maxObservations?: numbe
       if (observation.status !== 'started') terminals.set(observation.turnId, observation.status);
       effects = effects.filter(effect => effect.token.agentId !== observation.agentId);
       const wasVisible = entry.outcome.visible && entry.phase !== 'unknown';
-      entry.observation = clone(observation);
+      entry.observation = retainStart(previous, observation);
       const live = observation.delivery === 'live' && presentation === 'live' && !waiting(agents.get(observation.agentId)!);
       if (!live) { settle(entry); return 'applied'; }
       const token = { generation: motionGeneration, serial: ++serial, agentId: observation.agentId, turnId: observation.turnId };
