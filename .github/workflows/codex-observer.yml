@@ -1,0 +1,23 @@
+name: Codex observer checks
+on:
+  push:
+    branches: [codex/s1-observer]
+  pull_request:
+    paths:
+      - 'src/codex/**'
+      - 'tests/manual/codex-metadata-adapter.ts'
+      - '.github/workflows/codex-observer.yml'
+permissions:
+  contents: read
+jobs:
+  observer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test

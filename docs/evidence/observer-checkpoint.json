@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "issue": 1,
+  "status": "live-gate-open",
+  "implementationBase": "e11e853d7a5276beb10b41f4d88f571c4603e10c",
+  "reusedProbe": "62bc08b6336eac23e9fd29e4efef68a23b6e07f4",
+  "launch": "PETSTOWN_METADATA_CWDS='[\"/absolute/existing/project\"]' npm run office -- --adapter ./src/codex/metadata-adapter.ts --port 4319",
+  "runtime": {
+    "pathCli": "0.158.0",
+    "desktopAppServer": "0.166.0-alpha.5.1",
+    "platform": "Windows",
+    "daemonProbe": "codex app-server daemon version",
+    "result": "connection refused (10061)",
+    "desktopTransport": "stdio; no attachable listener observed"
+  },
+  "productionTransport": {
+    "kind": "existing Unix daemon control socket over WebSocket",
+    "methods": [
+      "initialize",
+      "initialized",
+      "thread/loaded/list",
+      "thread/read(includeTurns:false)"
+    ],
+    "liveTest": "not run in this checkpoint"
+  },
+  "passiveRolloutFeasibility": {
+    "result": "Read-only local inspection observed appended lifecycle records. This is not the production transport or a browser acceptance test.",
+    "publishedTrace": false,
+    "reason": "Detailed runtime identifiers and metadata withheld; no private task text or account data included."
+  },
+  "genuineAssets": {
+    "manifest": "src/shared/pets.ts",
+    "keys": [
+      "codex",
+      "dewey",
+      "hoots"
+    ],
+    "format": "1536x1872, 8 columns, 9 rows; existing official CDN manifest",
+    "visualInspection": "PR10 author evidence only; not reverified in this checkpoint"
+  },
+  "tests": {
+    "fixtureLabel": "SYNTHETIC",
+    "normalizationCases": 10,
+    "adapterCases": 4,
+    "execution": "CI workflow supplied; inspect PR checks for result"
+  },
+  "limits": [
+    "New project identities after the initial snapshot require reopening Office until lane C adds project events.",
+    "No item activity, request details, replies, handoff, or completion capabilities are claimed.",
+    "No live browser/reconnect/non-mutation acceptance run on a listening daemon in this checkpoint."
+  ],
+  "extensionSeam": "OfficeAdapter initialSnapshot/subscribe/stop unchanged. MetadataReader is read-only; #4/#7 retain separate module ownership. Merge only observed metadata fields when composing future extension state."
+}
