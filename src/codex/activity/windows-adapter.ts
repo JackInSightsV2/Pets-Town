@@ -1,11 +1,14 @@
 /** Opt-in passive rollout activity observer; it never controls Codex work. */
 import { randomUUID } from 'node:crypto';
+import { homedir } from 'node:os';
+import { resolve } from 'node:path';
 import type { OfficeAdapter } from '../../server/adapter.js';
 import type { ActivityEntry, OfficeEvent, OfficeSnapshot } from '../../shared/contract.js';
 import { createMetadataAdapter } from '../metadata-adapter.js';
 import { canonicalizeCwd } from '../observer-normalization.js';
 import { discoverRollouts } from '../rollout-discovery.js';
 import { RolloutReader } from '../rollout-reader.js';
+import { readNativeThreadNames, withNativeThreadNames } from '../native-thread-names.js';
 import { RolloutActivityNormalizer } from './rollout-activity.js';
 
 const merge = (entries: ActivityEntry[]) => {
@@ -13,23 +16,27 @@ const merge = (entries: ActivityEntry[]) => {
   return entries.filter(e => !seen.has(e.activityId) && !!seen.add(e.activityId)).sort((a,b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt)).slice(0, 50);
 };
 
-export async function createWindowsActivityAdapter(options: { files: string[]; root?: string; cwds: string[]; pollMs?: number; now?: () => string }): Promise<OfficeAdapter> {
+export async function createWindowsActivityAdapter(options: { files: string[]; root?: string; cwds: string[]; pollMs?: number; now?: () => string; nameIndex?: string | null }): Promise<OfficeAdapter> {
   const allowed = new Set(options.cwds.map(canonicalizeCwd));
   if (!allowed.size || allowed.has(null)) throw new Error('Invalid activity scope.');
   const normalizer = new RolloutActivityNormalizer('codex-rollout-command-v1', options.now);
   let pending: ActivityEntry[] = [], activityFailed = false;
   let pollComplete = () => {};
+  const nameIndex = options.nameIndex === undefined ? resolve(process.env.CODEX_HOME ?? resolve(homedir(), '.codex'), 'session_index.jsonl') : options.nameIndex;
   const base = await createMetadataAdapter({ allowedCwds: options.cwds, pollMs: options.pollMs, now: options.now,
     onPollComplete: () => pollComplete(),
     sourceDescription: 'Existing Codex session logs; completed command activity is observed without command details.',
-    connect: async () => new RolloutReader(options.files, options.root ? () => discoverRollouts(options.root!) : undefined, (threadId, cwd, batch) => {
+    connect: async () => {
+      const reader = new RolloutReader(options.files, options.root ? () => discoverRollouts(options.root!) : undefined, (threadId, cwd, batch) => {
       if (activityFailed || !allowed.has(canonicalizeCwd(cwd))) return;
       try {
         const entries = normalizer.commit(batch, threadId, threadId);
         if (pending.length + entries.length > 10_000) throw new Error('Activity queue capacity exceeded.');
         pending.push(...entries);
       } catch { activityFailed = true; pending = []; }
-    }) });
+      });
+      return nameIndex ? withNativeThreadNames(reader, { allowedCwds: options.cwds, readNames: ids => readNativeThreadNames(nameIndex, ids) }) : reader;
+    } });
   const listeners = new Set<(event: OfficeEvent) => void>();
   const queued: OfficeEvent[] = [];
   const epoch = 'rollout-activity-' + randomUUID();
