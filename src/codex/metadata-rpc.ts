@@ -6,6 +6,13 @@ type JsonObject = Record<string, unknown>;
 const object = (v: unknown): v is JsonObject => v !== null && typeof v === 'object' && !Array.isArray(v);
 const text = (v: unknown): string | null => typeof v === 'string' && v.length > 0 ? v : null;
 
+/** Return only the identity for the verified status broadcast; never retain its payload. */
+export function statusNotificationThreadId(message: unknown): string | null {
+  if (!object(message) || 'id' in message || message.method !== 'thread/status/changed'
+    || !object(message.params) || !object(message.params.status)) return null;
+  return text(message.params.threadId);
+}
+
 /** Preserve protocol classification without retaining server error text. */
 export class MetadataRpcError extends Error {
   constructor(readonly code: number | 'unknown') {
@@ -15,12 +22,21 @@ export class MetadataRpcError extends Error {
 
 export class MetadataRpc {
   private nextId = 0;
+  private statusListeners = new Set<(threadId: string) => void>();
   private pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>();
   private constructor(private socket: WebSocket) {
     socket.on('message', bytes => {
       let message: unknown;
       try { message = JSON.parse(bytes.toString()); } catch { return; }
-      // Ignore notifications and unsolicited server requests without retaining their contents.
+      // Status is the only verified broadcast. It is a wake-up, never an event projection.
+      const statusThreadId = statusNotificationThreadId(message);
+      if (statusThreadId) {
+        for (const listener of [...this.statusListeners]) {
+          try { listener(statusThreadId); } catch { /* Isolate observers. */ }
+        }
+        return;
+      }
+      // Ignore other notifications and unsolicited server requests without retaining their contents.
       if (!object(message) || typeof message.id !== 'number' || !('result' in message || 'error' in message)) return;
       const pending = this.pending.get(message.id);
       if (!pending) return;
@@ -50,6 +66,10 @@ export class MetadataRpc {
       return rpc;
     } catch (error) { rpc.close(); throw error; }
   }
+  subscribeStatus(listener: (threadId: string) => void): () => void {
+    this.statusListeners.add(listener);
+    return () => { this.statusListeners.delete(listener); };
+  }
   get connected() { return this.socket.readyState === WebSocket.OPEN; }
   call(method: RpcMethod, params: JsonObject): Promise<unknown> {
     if (method === 'thread/read' && (params.includeTurns !== false || typeof params.threadId !== 'string' || Object.keys(params).some(key => key !== 'threadId' && key !== 'includeTurns'))) return Promise.reject(new Error('Metadata reads require includeTurns:false.'));
@@ -69,5 +89,5 @@ export class MetadataRpc {
     for (const pending of this.pending.values()) { clearTimeout(pending.timer); pending.reject(error); }
     this.pending.clear();
   }
-  close() { this.rejectPending(new Error('Metadata observer stopped.')); this.socket.terminate(); }
+  close() { this.statusListeners.clear(); this.rejectPending(new Error('Metadata observer stopped.')); this.socket.terminate(); }
 }
