@@ -73,7 +73,7 @@ export function App({ store, onPresentationAction }: AppProps) {
   return <main className="office-canvas" data-testid="office-app" onPointerDown={event => {
     if (!(event.target instanceof Element) || !event.target.closest('.scene-agent, .pet-details')) store.selectAgent(null);
   }}>
-    <OfficeScene geometry={officeGeometry} snapshot={sceneSnapshot} selectedAgentId={selectedAgentId} visibleAgents={visibleAgents}
+    <OfficeScene observerConnected={state.transport.status === 'connected'} geometry={officeGeometry} snapshot={sceneSnapshot} selectedAgentId={selectedAgentId} visibleAgents={visibleAgents}
       onSelectAgent={(agentId, point) => { if (point) setAnchor(point); store.selectAgent(agentId); }}
       meeting={meetings.active} onMeetingComplete={store.completeMeeting} />
     {hasFixtureData(snapshot) && <span className="canvas-fixture-label" data-testid="fixture-banner">Fixture data</span>}
