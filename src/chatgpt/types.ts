@@ -1,4 +1,4 @@
-import type { OfficeSnapshot } from '../shared/contract';
+import type { OfficeEvent, OfficeSnapshot } from '../shared/contract';
 
 export const OFFICE_RESOURCE_URI = 'ui://petstown/office-v2.html';
 export interface OfficeView {
@@ -6,6 +6,7 @@ export interface OfficeView {
   scopeId: string;
   selectedAgentId: string | null;
   projectId: string | null;
+  refresh?: { mode: 'baseline' } | { mode: 'events'; events: OfficeEvent[] };
 }
 // Full snapshot is UI-only tool result metadata; model context is a bounded summary.
 export interface OfficeToolMeta { office: OfficeView }

@@ -1,5 +1,6 @@
 import { copyFile, mkdir, writeFile } from 'node:fs/promises';
 import { resolve, isAbsolute } from 'node:path';
+import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { readScope } from '../src/chatgpt/snapshot.js';
 
@@ -21,6 +22,7 @@ await writeFile(resolve(target, '.mcp.json'), JSON.stringify({
   mcpServers: { petstown: {
     command: process.execPath, args: ['./server.mjs'], cwd: '.',
     env: { PETSTOWN_METADATA_CWDS: JSON.stringify(scope),
+      ...(process.platform === 'win32' ? { PETSTOWN_ROLLOUT_ROOT: process.env.PETSTOWN_ROLLOUT_ROOT ?? resolve(process.env.CODEX_HOME ?? resolve(homedir(), '.codex'), 'sessions') } : {}),
       ...(process.env.PETSTOWN_METADATA_SOCKET ? { PETSTOWN_METADATA_SOCKET: process.env.PETSTOWN_METADATA_SOCKET } : {}) },
   } },
 }, null, 2) + '\n');
