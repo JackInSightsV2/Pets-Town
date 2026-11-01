@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { OfficeAgent, OfficeSnapshot } from '../shared/contract';
-import { attentionFor, stateLabels, timeLabel } from './view-model';
+import { attentionFor, observedStatusLabel, timeLabel } from './view-model';
 import './pet-details.css';
 
 interface PetDetailsProps {
@@ -73,7 +73,7 @@ export function PetDetails({ agent, snapshot, anchor, stale, onClose }: PetDetai
       <div>
         <h2 data-testid="selected-agent-name">{agent.displayName}</h2>
         <p className={`pet-details-status state-${agent.runtimeState}`}>
-          <span aria-hidden="true" />{stateLabels[agent.runtimeState]}
+          <span aria-hidden="true" />{observedStatusLabel(agent, snapshot)}
           {stale ? <span className="pet-details-stale" data-testid="stale-agent-data">Last observed</span> : null}
         </p>
       </div>

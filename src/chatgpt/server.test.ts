@@ -40,6 +40,16 @@ test('projection excludes other projects, control tokens, paths and unknown fiel
   assert.ok(officeView(input, ['/project']).snapshot.agents[0].pendingRequestIds.includes('details-unavailable'));
 });
 
+test('lifecycle snapshot strips unrecognized observer fields', () => {
+  const input = snapshot();
+  input.latestTurns = [{ agentId: 'main', turnId: `turn-v1-${'a'.repeat(64)}`, sourceEventId: `turn-event-v1-${'b'.repeat(64)}`,
+    status: 'started', source: 'fixture', delivery: 'history', occurredAt: '2026-11-01T13:00:00Z', startedAt: 1 }];
+  Object.assign(input.latestTurns[0], { privateExtension: 'DO_NOT_SHARE' });
+  const projected = officeView(input, ['/project']);
+  assert.equal(JSON.stringify(projected).includes('DO_NOT_SHARE'), false);
+  assert.equal(projected.snapshot.latestTurns?.[0].status, 'started');
+});
+
 test('MCP initialize, resource, tools, live refresh, restart rejection and read-only contract', async () => {
   let current = snapshot();
   current.agents[0].petAssetId = 'codex';
@@ -85,4 +95,11 @@ test('MCP initialize, resource, tools, live refresh, restart rejection and read-
 test('scope identity is stable across processes but changes with allowed projects', () => {
   assert.equal(officeView(snapshot(0, 'a'), ['/project']).scopeId, officeView(snapshot(0, 'b'), ['/project']).scopeId);
   assert.notEqual(officeView(snapshot(), ['/project']).scopeId, officeView(snapshot(), ['/other']).scopeId);
+});
+
+test('project filters use separate cursor scopes', () => {
+  const input = snapshot();
+  input.projects.push({ projectId: 'second', displayName: 'Second', cwd: '/project' });
+  assert.notEqual(officeView(input, ['/project'], { projectId: input.projects[0].projectId }).scopeId,
+    officeView(input, ['/project'], { projectId: 'second' }).scopeId);
 });

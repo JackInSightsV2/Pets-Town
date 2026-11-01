@@ -1,5 +1,6 @@
 import type { ActivityEntry, OfficeAgent, OfficeEvent, OfficeRequest, OfficeSnapshot } from '../shared/contract';
 import { isOfficeEvent, isOfficeSnapshot } from './validation';
+import { upsertLatestTurn } from '../shared/turn-lifecycle';
 
 export type TransportStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
 export interface OfficeClientState {
@@ -105,6 +106,11 @@ export function createOfficeStore(initial?: OfficeSnapshot): OfficeStore {
           case 'agent.state.changed': changeAgent(a => ({ ...a, runtimeState: e.data.runtimeState, lastObservedAt: e.occurredAt })); break;
           // Completion is an observed work item, not proof that the session closed (or its next turn is idle).
           case 'agent.work.completed': break;
+          case 'agent.turn.observed':
+            if (e.source === current.source && current.agents.some(agent => agent.agentId === e.agentId)) {
+              next.latestTurns = upsertLatestTurn(current.latestTurns, e.data.observation);
+            }
+            break;
           case 'agent.closed': changeAgent(a => ({ ...a, runtimeState: 'closed', lastObservedAt: e.occurredAt })); break;
           case 'request.opened': {
             const request = disableReply(e.data.request);

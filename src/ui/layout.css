@@ -1,7 +1,8 @@
 /* A single logical office grows beyond the artwork instead of reusing desks. */
 .office-scene.mapped-office{height:580px;aspect-ratio:auto;overflow:hidden;background:#c8a884}
 .office-map-viewport{position:absolute;inset:0;overflow:auto;overscroll-behavior:contain;scrollbar-color:#8c8068 #ddccb0;scrollbar-width:thin;outline-offset:-4px;scroll-padding:50px 24px}
-.office-map-surface{position:relative;isolation:isolate;min-width:100%;min-height:100%;background-color:#dfb68b;background-image:repeating-linear-gradient(0deg,transparent 0,transparent 27px,#b9895c40 28px,transparent 29px),repeating-linear-gradient(90deg,transparent 0,transparent 223px,#bd916329 224px,transparent 225px);overflow:hidden}
+.office-map-extent{position:relative;overflow:hidden}
+.office-map-surface{position:absolute;left:0;top:0;isolation:isolate;transform-origin:0 0;background-color:#dfb68b;background-image:repeating-linear-gradient(0deg,transparent 0,transparent 27px,#b9895c40 28px,transparent 29px),repeating-linear-gradient(90deg,transparent 0,transparent 223px,#bd916329 224px,transparent 225px);overflow:hidden}
 .office-map-surface .office-map-artwork{position:absolute;left:0;top:0;display:block;max-width:none;object-fit:contain;object-position:left top;pointer-events:none}
 .office-map-surface .scene-grain{z-index:0;pointer-events:none}
 .office-scene.mapped-office .scene-floor-tag,.office-scene.mapped-office>.scene-caption{z-index:9;pointer-events:none}

@@ -1,6 +1,7 @@
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { readFile } from 'node:fs/promises';
-import { createAdapter } from '../codex/metadata-adapter.js';
+import { createAdapter as createMacAdapter } from '../codex/lifecycle/mac-adapter.js';
+import { createAdapter as createWindowsAdapter } from '../codex/lifecycle/windows-adapter.js';
 import { createOfficeServer } from '../server/server.js';
 import { createChatgptServer } from './server.js';
 import { readScope } from './snapshot.js';
@@ -9,7 +10,7 @@ import { readScope } from './snapshot.js';
 const allowedCwds = readScope(process.env.PETSTOWN_METADATA_CWDS);
 const app = createChatgptServer({
   allowedCwds,
-  source: async () => createOfficeServer({ adapter: await createAdapter(), port: 0 }),
+  source: async () => createOfficeServer({ adapter: await (process.platform === 'win32' ? createWindowsAdapter() : createMacAdapter()), port: 0 }),
   readHtml: () => readFile(new URL('./office.html', import.meta.url), 'utf8'),
 });
 let closing = false;
