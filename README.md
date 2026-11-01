@@ -2,9 +2,48 @@
 
 A living office for existing Codex agents, launched from Codex CLI into a local browser. Genuine ChatGPT/Codex pets arrive, give a brief standup and reflect real work, requests and handoffs.
 
-**Status:** the agreed design, generated office environment and nine implementation issues are published. The application has not been implemented yet.
+**Status:** this branch contains the local bridge, browser office, pet inspection panel, request tracking and development fixtures. The existing-agent adapter and live acceptance remain integration work; the app does not start Codex agents. See the [Track C handoff](docs/track-c.md).
 
 ![PetsTown office environment](assets/office/office-v1.png)
+
+## Run the app
+
+Use Node.js 22.12 or later, from the repository root:
+
+```sh
+npm ci
+npm run build
+npm run office -- --fixture
+```
+
+`--fixture` opens an explicitly labelled **synthetic development office**. It is not live Codex evidence. Keep the terminal open; Ctrl-C stops the bridge it owns. The default browser address is `http://127.0.0.1:4317`.
+
+To connect a teammate's observation adapter:
+
+```sh
+npm run office -- --adapter ./path/to/adapter.ts
+```
+
+Replace the module path with a module exporting the [adapter contract](docs/track-c.md#adapter-integration). Without `--fixture` or `--adapter`, the app opens with an honest unsupported/empty source. No live adapter is selected automatically.
+
+Launcher options are `--fixture`, `--adapter <module>`, `--port <1–65535>` and `--no-open`. `PETSTOWN_PORT` and `PETSTOWN_ADAPTER_MODULE` provide defaults. Fixture and adapter modes cannot be combined. Repeat fixture/default launches can reuse a matching bridge; an explicit adapter launch refuses an occupied office port because adapter identity cannot be verified. Use a free `--port` or stop the old bridge yourself.
+
+For UI development with Vite and the bridge together:
+
+```sh
+npm run dev:all -- --fixture
+```
+
+Use the Vite URL printed in the terminal. Combined development requires bridge port 4317; stop an existing bridge on that port first. `npm run dev:all -- --adapter ./path/to/adapter.ts` uses the same adapter module contract.
+
+## Checks
+
+```sh
+npm run typecheck
+npm test
+```
+
+Targeted browser checks are available through `npm run test:e2e -- tests/browser/inspection.spec.ts` once the Playwright browser is installed. Fixture/unit/browser checks do not satisfy the real-agent evidence required by [#3](https://github.com/JackInSightsV2/Pets-Town/issues/3) or the target-Mac rehearsal in [#6](https://github.com/JackInSightsV2/Pets-Town/issues/6).
 
 ## Start here
 
@@ -39,4 +78,4 @@ Then consider [#8: Voice](https://github.com/JackInSightsV2/Pets-Town/issues/8) 
 - [Integration evidence and remaining checks](docs/integration-notes.md)
 - [Office image prompt and provenance](assets/office/office-v1.prompt.md)
 
-The environment image is available; retrieval and validation of genuine ChatGPT/Codex pet assets is part of #1. No plugin installation or live office connection has been verified yet.
+The app references three genuine built-in pet sprite sheets through the official asset URLs in [the pet manifest](src/shared/pets.ts). Live agent mapping and the integrated asset check remain part of #1. Plugin installation, live office acceptance, voice and live computer view are not claimed complete.
