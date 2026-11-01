@@ -3,7 +3,7 @@ import type { OfficeAgent, OfficeSnapshot } from '../shared/contract';
 import type { Meeting, MeetingToken } from '../office/handoffs/meeting-queue';
 import { createOfficeLayout, DEFAULT_OFFICE_GEOMETRY, type OfficeGeometry, type Point } from '../office/layout';
 import officeBackground from '../../assets/office/office-v1.png';
-import { attentionFor, nativeAssetFor } from './view-model';
+import { attentionFor, nativeAssetFor, stateLabels } from './view-model';
 import { NativePet } from './NativePet';
 import './handoffs.css';
 import './layout.css';
@@ -13,7 +13,7 @@ export interface OfficeSceneProps {
   snapshot: OfficeSnapshot | null;
   selectedAgentId: string | null;
   visibleAgents: OfficeAgent[];
-  onSelectAgent(agentId: string): void;
+  onSelectAgent(agentId: string, anchor?: Point): void;
   meeting?: Meeting | null;
   onMeetingComplete?(token: MeetingToken): void;
   hiddenHandoffCount?: number;
@@ -23,6 +23,17 @@ export interface OfficeSceneProps {
 type MeetingPhase = 'approaching' | 'exchanging' | 'returning' | 'complete';
 const WALK_MS = 1100;
 const EXCHANGE_MS = 4000;
+function PetHint({ agent, anchor }: { agent: OfficeAgent; anchor: Point }) {
+  const tooltip = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState(anchor);
+  useLayoutEffect(() => {
+    const bounds = tooltip.current?.getBoundingClientRect();
+    if (!bounds) return;
+    setPosition({ x: Math.max(10, Math.min(anchor.x - bounds.width / 2, window.innerWidth - bounds.width - 10)),
+      y: Math.max(10, Math.min(anchor.y - bounds.height - 8, window.innerHeight - bounds.height - 10)) });
+  }, [anchor.x, anchor.y, agent.displayName, agent.runtimeState]);
+  return <div ref={tooltip} className="pet-tooltip" role="tooltip" style={{ left: position.x, top: position.y }}><strong>{agent.displayName}</strong><span>{stateLabels[agent.runtimeState]}</span></div>;
+}
 function spreadPoint(index: number, anchor: Point, geometry: OfficeGeometry, fromBottom = false): Point {
   const padding = Math.max(60, geometry.padding);
   const columns = Math.max(1, Math.min(5, Math.floor((geometry.canvas.width - padding * 2) / geometry.spacing.x) + 1));
@@ -38,7 +49,9 @@ function spreadPoint(index: number, anchor: Point, geometry: OfficeGeometry, fro
     y: fromBottom && row <= rowsAbove ? y - row * geometry.spacing.y : y + (fromBottom ? row - rowsAbove : row) * geometry.spacing.y };
 }
 /** Replaceable scene boundary: the renderer only observes snapshots and reports selection. */
-export function OfficeScene({ snapshot, selectedAgentId, visibleAgents, onSelectAgent, meeting = null, onMeetingComplete, hiddenHandoffCount = 0, geometry }: OfficeSceneProps) {
+export function OfficeScene({ snapshot, selectedAgentId, visibleAgents, onSelectAgent, meeting = null, onMeetingComplete, geometry }: OfficeSceneProps) {
+  const [hover, setHover] = useState<{ agentId: string; anchor: Point } | null>(null);
+  const hoveredAgent = hover && hover.agentId !== selectedAgentId ? visibleAgents.find(agent => agent.agentId === hover.agentId) : null;
   const geometryKey = JSON.stringify(geometry ?? {});
   const allocator = useRef<{ key: string; mapper: ReturnType<typeof createOfficeLayout> } | null>(null);
   if (!allocator.current || allocator.current.key !== geometryKey) allocator.current = { key: geometryKey, mapper: createOfficeLayout(geometry) };
@@ -153,7 +166,7 @@ export function OfficeScene({ snapshot, selectedAgentId, visibleAgents, onSelect
   const worldWidth = Math.max(layout.width, ...placed.map(pet => pet.point.x + 60));
   const worldHeight = Math.max(layout.height, ...placed.map(pet => pet.point.y + 60));
   return <div className="office-scene mapped-office" data-testid="office-scene" data-presentation={state} data-meeting={activeMeeting?.handoff.handoffId ?? ''} data-meeting-phase={phase} data-reduced-motion={reducedMotion} aria-label="Office scene">
-    <div ref={viewport} className="office-map-viewport" data-testid="office-map-viewport" tabIndex={0} role="region" aria-label="Shared office map. Scroll to explore the office.">
+    <div ref={viewport} className="office-map-viewport" data-testid="office-map-viewport" tabIndex={0} role="region" aria-label="Shared office map. Scroll to explore the office." onScroll={() => setHover(null)}>
       <div className="office-map-surface" data-testid="office-map-surface" style={{ width: worldWidth, height: worldHeight }}>
         <img className="office-background office-map-artwork" src={officeBackground} style={{ width: artworkCanvas.width, height: artworkCanvas.height }} alt="One open-plan office with desk areas, a central gathering rug, reading corners and sofas" />
         <div className="scene-grain" />
@@ -164,22 +177,17 @@ export function OfficeScene({ snapshot, selectedAgentId, visibleAgents, onSelect
         {placed.map(({ agent, home, entrance, standup, participantIndex, location, point, animationName }) => {
           const asset = nativeAssetFor(agent, snapshot!.petAssets)!;
           const style = { left: point.x, top: point.y, '--entrance-x': `${entrance.x}px`, '--entrance-y': `${entrance.y}px`, '--standup-x': `${standup.x}px`, '--standup-y': `${standup.y}px`, '--arrival-delay': `${Math.min(formation.current.slots.get(agent.agentId)! * 70, 560)}ms` } as CSSProperties;
-          return <button key={agent.agentId} className={`scene-agent ${selectedAgentId === agent.agentId ? 'is-selected' : ''}`} data-testid={`scene-agent-${agent.agentId}`} data-project-id={agent.projectId} data-meeting-participant={participantIndex !== -1} data-location={location} data-motion={state === 'arrivals' ? 'arriving' : 'settled'} data-runtime-state={agent.runtimeState} data-home-left={`${home.x}px`} data-home-top={`${home.y}px`} aria-label={`Inspect ${agent.displayName}`} aria-pressed={selectedAgentId === agent.agentId} style={style} onClick={() => onSelectAgent(agent.agentId)}>
+          const showHint = (button: HTMLButtonElement) => { const bounds = button.getBoundingClientRect(); setHover({ agentId: agent.agentId, anchor: { x: bounds.left + bounds.width / 2, y: bounds.top } }); };
+          return <button key={agent.agentId} className={`scene-agent ${selectedAgentId === agent.agentId ? 'is-selected' : ''}`} data-testid={`scene-agent-${agent.agentId}`} data-project-id={agent.projectId} data-meeting-participant={participantIndex !== -1} data-location={location} data-motion={state === 'arrivals' ? 'arriving' : 'settled'} data-runtime-state={agent.runtimeState} data-home-left={`${home.x}px`} data-home-top={`${home.y}px`} aria-label={`Inspect ${agent.displayName}`} aria-pressed={selectedAgentId === agent.agentId} style={style}
+            onMouseEnter={event => showHint(event.currentTarget)} onMouseLeave={() => setHover(null)} onFocus={event => showHint(event.currentTarget)} onBlur={() => setHover(null)}
+            onClick={event => { const bounds = event.currentTarget.getBoundingClientRect(); setHover(null); onSelectAgent(agent.agentId, { x: bounds.left + bounds.width / 2, y: bounds.bottom }); }}>
             {attentionFor(agent, snapshot!).count > 0 && <span className="scene-attention" aria-label="Unresolved request">!</span>}
             {agent.runtimeState === 'error' && <span className="scene-runtime-error" aria-label="Agent error">×</span>}
             <NativePet asset={asset} state={agent.runtimeState} animationName={animationName} />
-            <span className="scene-agent-label">{agent.displayName}</span>
           </button>;
         })}
       </div>
     </div>
-    <div className="scene-floor-tag"><span /> THE SHARED OFFICE <span className="floor-separator">/</span> FLOOR 01</div>
-    {hiddenHandoffCount > 0 && <div className="hidden-handoff-count" data-testid="hidden-handoff-count" role="status">{hiddenHandoffCount} {hiddenHandoffCount === 1 ? 'handoff involves' : 'handoffs involve'} hidden pets</div>}
-    {nativeAgents.length === 0 && <div className="scene-empty" data-testid="native-pet-empty-state">
-      <span className="eyebrow">THE SPACE IS READY</span>
-      <strong>{snapshot?.agents.length ? 'Your agents are in the roster.' : 'A place for your working agents.'}</strong>
-      <p>{snapshot?.agents.length ? visibleAgents.length ? 'Native pet artwork is not available for these agents yet. Select an agent below to inspect its observed activity.' : 'The current visibility settings hide these pets. Their work continues in Codex.' : 'Connected Codex agents will appear here when a supported source is available.'}</p>
-    </div>}
-    <div className="scene-caption"><span className="scene-caption-dot" /> {nativeAgents.length ? 'Pet assets: ChatGPT / Codex' : 'Office environment · native pets only'}<span>Scroll to explore the office</span></div>
+    {hoveredAgent && hover && <PetHint agent={hoveredAgent} anchor={hover.anchor} />}
   </div>;
 }

@@ -10,7 +10,7 @@ import { defaultObserverIdentity } from '../src/server/main.js';
 import { builtInPets } from '../src/shared/pets.js';
 
 const args = process.argv.slice(2);
-if (args.includes('--help')) {
+if (args.length === 1 && args[0] === '--help') {
   console.log('Usage: npx tsx scripts/check-office-env.ts [--handoffs] [--port PORT]');
   console.log('Read-only Mac launch diagnostics. --handoffs checks the optional 0.166.0 handshake without reading history.');
 } else {
@@ -33,6 +33,8 @@ async function main() {
     && Number.isInteger(port) && port >= 1 && port <= 65535;
   report('arguments', validArgs, 'Use --help and specify a port from 1 to 65535.');
   if (!validArgs) { process.exitCode = 1; return; }
+  const adapterOk = handoffs || !process.env.PETSTOWN_ADAPTER_MODULE;
+  report('adapter', adapterOk, 'Unset PETSTOWN_ADAPTER_MODULE before launching the default metadata observer.');
   const [major, minor] = process.versions.node.split('.').map(Number);
   report('node', major > 22 || (major === 22 && minor >= 12), 'Install Node.js 22.12 or newer.');
   report('platform', process.platform === 'darwin', 'Run this check on the target Mac.');
@@ -61,7 +63,7 @@ async function main() {
         ok = size !== null && size[0] === pet.width && size[1] === pet.height;
       }
     } catch { /* Missing or invalid cache. */ }
-    report('asset-' + pet.assetId, ok, 'Run npm run pets:fetch to refresh the official local pet cache.');
+    report('asset-' + pet.assetId, ok, 'Run npm run pets:fetch to refresh the official local pet cache.', { validation: 'webp-header-and-dimensions' });
   }
 
   const socket = process.env.PETSTOWN_METADATA_SOCKET ?? resolve(process.env.CODEX_HOME ?? resolve(homedir(), '.codex'), 'app-server-control/app-server-control.sock');
@@ -92,7 +94,7 @@ async function main() {
       const response = await fetch(`http://127.0.0.1:${port}/api/health`, { signal: AbortSignal.timeout(700) });
       if (response.ok) {
         const health: any = await response.json();
-        reuse = !handoffs && scopeOk && health?.service === 'petstown-office' && health.protocolVersion === 1
+        reuse = !handoffs && adapterOk && scopeOk && health?.service === 'petstown-office' && health.protocolVersion === 1
           && health.source === 'codex' && typeof health.launchIdentity === 'string' && health.launchIdentity === defaultObserverIdentity();
       }
     } catch { /* A free port is checked below. */ }

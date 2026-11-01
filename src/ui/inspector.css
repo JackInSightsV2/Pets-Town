@@ -1,4 +1,0 @@
-.inspector-chat-action{grid-column:1/-1;padding:0 22px 18px}
-.open-chat-link{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:11px 13px;background:var(--green);color:var(--paper);border:1px solid var(--green);border-radius:5px;font-size:12px;font-weight:650;text-decoration:none}
-.open-chat-link:hover{filter:brightness(.95)}
-.inspector-identity>div:last-child{min-width:0}.inspector-identity h2{overflow-wrap:anywhere}

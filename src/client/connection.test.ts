@@ -182,3 +182,19 @@ test('presentation fails explicitly without token or on rejected POST', async t 
   await assert.rejects(presentationAction(createOfficeStore(snapshot()), 'reset'), /403/);
   assert.equal(calls, 1);
 });
+
+test('an obsolete presentation request cannot apply its delayed snapshot', async t => {
+  const lateSnapshot = deferred<Response>();
+  let calls = 0;
+  let current = true;
+  mockTransport(t, async () => ++calls === 1 ? response({}) : lateSnapshot.promise);
+  const store = createOfficeStore(snapshot(2));
+  const action = presentationAction(store, 'start', '', () => current);
+  await settle();
+  current = false;
+  lateSnapshot.resolve(response(snapshot(99)));
+  await action;
+  assert.equal(store.getState().snapshot!.lastSeq, 2);
+  await presentationAction(store, 'skip', '', () => current);
+  assert.equal(calls, 2);
+});

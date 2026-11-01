@@ -7,5 +7,5 @@ const store = createHandoffStore();
 const connection = connectOffice(store);
 const root = document.getElementById('root');
 if (!root) throw new Error('PetsTown needs a #root element.');
-createRoot(root).render(<App store={store} onPresentationAction={action => presentationAction(store, action)} />);
+createRoot(root).render(<App store={store} onPresentationAction={(action, isCurrent) => presentationAction(store, action, '', isCurrent)} />);
 window.addEventListener('pagehide', () => connection.stop(), { once: true });
