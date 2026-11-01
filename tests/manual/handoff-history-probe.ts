@@ -7,10 +7,12 @@ import { resolve } from 'node:path';
 const socketPath = process.env.PETSTOWN_METADATA_SOCKET ?? resolve(process.env.CODEX_HOME ?? resolve(homedir(), '.codex'), 'app-server-control/app-server-control.sock');
 if (process.platform === 'win32' || !socketPath.startsWith('/') || socketPath.includes(':')) throw new Error('An existing Unix daemon socket is required.');
 const ws = new WebSocket(`ws+unix://${socketPath}:/`, { handshakeTimeout: 5000, maxPayload: 20 * 1024 * 1024 });
-const deadline = setTimeout(() => ws.terminate(), 70_000);
+let deadlineReached = false;
+const deadline = setTimeout(() => { deadlineReached = true; ws.terminate(); }, 70_000);
 const secret = randomBytes(32);
 const pseudonym = (value: string) => createHmac('sha256', secret).update(value).digest('hex').slice(0, 12);
 const seen = new Set<string>();
+const baselinedThreads = new Set<string>();
 let id = 0;
 const pending = new Map<number, { ok(value: any): void; fail(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
 ws.on('message', bytes => {
@@ -41,12 +43,14 @@ async function scan(initial: boolean) {
     if (cursors.has(cursor) || page === 99) throw new Error('Pagination limit.');
     cursors.add(cursor);
   }
-  let readable = 0, rejected = 0, count = 0;
+  let readable = 0, rejected = 0, historyCount = 0, newCount = 0, newlyBaselined = 0;
   for (const threadId of ids) {
     let response: any;
-    try { response = await call('thread/read', { threadId, includeTurns: true }); } catch { rejected++; continue; }
+    try { response = await call('thread/read', { threadId, includeTurns: true }); } catch (error) { if (deadlineReached || ws.readyState !== WebSocket.OPEN) throw error; rejected++; continue; }
     if (response?.thread?.id !== threadId || !Array.isArray(response.thread.turns)) { rejected++; continue; }
     readable++;
+    const baselineThread = !baselinedThreads.has(threadId);
+    if (baselineThread) newlyBaselined++;
     for (const turn of response.thread.turns) {
       if (typeof turn?.id !== 'string' || !Array.isArray(turn.items)) continue;
       for (const item of turn.items) {
@@ -55,12 +59,14 @@ async function scan(initial: boolean) {
             !item.agentThreadId || item.agentThreadId === threadId) continue;
         const key = JSON.stringify([threadId, turn.id, item.id]);
         if (seen.has(key)) continue;
-        seen.add(key); count++;
-        if (!initial) console.log(JSON.stringify({ result: 'new-interaction', sender: pseudonym(threadId), recipient: pseudonym(item.agentThreadId), item: pseudonym(key), source: 'thread/read history' }));
+        seen.add(key);
+        if (baselineThread) historyCount++; else newCount++;
+        if (!baselineThread) console.log(JSON.stringify({ result: 'new-interaction', sender: pseudonym(threadId), recipient: pseudonym(item.agentThreadId), item: pseudonym(key), source: 'thread/read history' }));
       }
     }
+    baselinedThreads.add(threadId);
   }
-  console.log(JSON.stringify({ phase: initial ? 'baseline' : 'poll', loaded: ids.size, readable, rejected, newInteractions: count }));
+  console.log(JSON.stringify({ phase: initial ? 'baseline' : 'poll', loaded: ids.size, readable, rejected, newlyBaselined, historyInteractions: historyCount, newInteractions: newCount }));
 }
 try {
   await new Promise<void>((ok, fail) => { ws.once('open', ok); ws.once('error', () => fail(new Error('Could not connect to existing daemon.'))); });
@@ -70,5 +76,8 @@ try {
   const end = Date.now() + 60_000;
   while (Date.now() < end) { await new Promise(done => setTimeout(done, 3000)); await scan(false); }
   console.log(JSON.stringify({ result: 'finished', note: 'Counts and pseudonyms are diagnostic only; a new interaction is not yet an Office meeting.' }));
-} catch { console.error('Probe failed or timed out; no source capability established.'); process.exitCode = 1; }
+} catch {
+  if (deadlineReached) console.log(JSON.stringify({ result: 'deadline', note: 'Time limit reached; baseline or scan may be incomplete. No source capability established.' }));
+  else { console.error('Probe connection or read failed; no source capability established.'); process.exitCode = 1; }
+}
 finally { clearTimeout(deadline); ws.terminate(); }
