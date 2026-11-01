@@ -16,7 +16,7 @@ codex plugin list --marketplace petstown-local --json
 npm run check:chatgpt:plugin
 ```
 
-Repeat `--project` for each explicitly allowed directory. Matching is exact, including normalization; parents do not include children. The generated `plugins/petstown/.mcp.json` pins those directories and the packaging Node executable. It is machine-specific and ignored by Git. Set `PETSTOWN_METADATA_SOCKET` during packaging only if the existing daemon uses a nondefault socket. This source requires the existing Unix Codex control socket; it does not attach to a Windows stdio runtime.
+Repeat `--project` for each explicitly allowed directory. Matching is exact, including normalization; parents do not include children. The generated `plugins/petstown/.mcp.json` pins those directories and invokes `node` from the host PATH. It is machine-specific and ignored by Git. Set `PETSTOWN_METADATA_SOCKET` during packaging only if the existing daemon uses a nondefault socket. macOS uses the existing Unix Codex control socket. Windows reads existing session logs under `CODEX_HOME/sessions`, or the current user’s `.codex/sessions` directory. It does not attach to or take over a Windows stdio runtime. Set `PETSTOWN_ROLLOUT_ROOT` or `PETSTOWN_ROLLOUT_FILES` when packaging to select an explicit log source on either platform. Historical logs establish identity only; fresh lifecycle records establish observed work state.
 
 The compatibility manifest is `.codex-plugin/plugin.json`, pointing to `.mcp.json`. Do not add a portable root `plugin.json`: Desktop 26.1027 recognises its identity but shadows the compatibility MCP declaration, reporting zero servers. The discovery check above exercises the running desktop and catches this failure; a direct SDK smoke test does not.
 
@@ -25,6 +25,8 @@ The generated package contains the bundled server and self-contained office HTML
 In a **new local ChatGPT conversation**, select `@petstown` and ask **“Show my team.”** If the plugin is absent from the selector, restart the app when convenient, then open a new conversation. This implementation does not claim web-host access to the local machine. It does not publish a public endpoint.
 
 After code changes, rebuild, package and run `codex plugin add` again. Verify the installed copy matches the new bundle, then use a new conversation. Running threads may retain their old plugin connection. Avoid restarting active work just to reload the plugin.
+
+Build/package on each target machine so the explicit project directory allowlist matches that machine. In Windows PowerShell, use `npm run package:chatgpt -- --project $PWD.Path`. Node.js must be on the desktop host's PATH. The server/UI code is shared across platforms; the generated local configuration remains machine-specific. Platform CI exercises both macOS and Windows, but CI fixtures do not establish live Windows desktop acceptance.
 
 ## Experience
 

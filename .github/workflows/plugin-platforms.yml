@@ -1,0 +1,28 @@
+name: Plugin platform checks
+on:
+  push:
+    branches: [main, release/0.1.4-cross-platform]
+    paths: ['src/chatgpt/**', 'src/codex/**', 'scripts/*chatgpt*', 'plugins/**', '.github/workflows/plugin-platforms.yml']
+  pull_request:
+    paths: ['src/chatgpt/**', 'src/codex/**', 'scripts/*chatgpt*', 'plugins/**', '.github/workflows/plugin-platforms.yml']
+permissions:
+  contents: read
+jobs:
+  plugin:
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npx tsx --test src/codex/platform-adapter.test.ts src/codex/rollout-reader.test.ts src/chatgpt/server.test.ts
+      - run: npm run build:chatgpt
+      - name: Package with an explicit platform-local project directory
+        shell: pwsh
+        run: npm run package:chatgpt -- --project $PWD.Path
