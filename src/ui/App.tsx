@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import type { OfficeStore } from '../client/store';
+import type { HandoffStore } from '../client/handoffs';
 import type { OfficeAgent, OfficeSnapshot } from '../shared/contract';
 import { OfficeScene } from './OfficeScene';
 import { NativePet } from './NativePet';
@@ -7,7 +7,7 @@ import { attentionFor, connectionView, hasFixtureData, isWaiting, nativeAssetFor
 import './styles.css';
 
 type PresentationAction = 'start' | 'skip' | 'reset';
-interface AppProps { store: OfficeStore; onPresentationAction(action: PresentationAction): Promise<void> }
+interface AppProps { store: HandoffStore; onPresentationAction(action: PresentationAction): Promise<void> }
 
 function Mark({ small = false }: { small?: boolean }) {
   return <span className={`brand-mark ${small ? 'small' : ''}`} aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M5 25V12L16 5l11 7v13H5Z"/><path d="M11 25V15h10v10M9 12h14M16 5v5"/></svg></span>;
@@ -57,6 +57,7 @@ function Inspector({ agent, snapshot, stale, selectedMissing }: { agent: OfficeA
 
 export function App({ store, onPresentationAction }: AppProps) {
   const state = useSyncExternalStore(store.subscribe, store.getState, store.getState);
+  const meetings = useSyncExternalStore(store.subscribeMeetings, store.getMeetingState, store.getMeetingState);
   const { snapshot, selectedAgentId } = state;
   const [showSubagents, setShowSubagents] = useState(true);
   const [pendingAction, setPendingAction] = useState<PresentationAction | null>(null);
@@ -66,6 +67,8 @@ export function App({ store, onPresentationAction }: AppProps) {
   const selectedAgent = snapshot?.agents.find(agent => agent.agentId === selectedAgentId) ?? null;
   const agents = snapshot?.agents ?? [];
   const visibleAgents = agents.filter(agent => showSubagents || !agent.parentAgentId);
+  const visiblePetIds = JSON.stringify(visibleAgents.filter(agent => agent.runtimeState !== 'closed' && snapshot && nativeAssetFor(agent, snapshot.petAssets)).map(agent => agent.agentId));
+  useEffect(() => { store.setVisibleAgents(JSON.parse(visiblePetIds) as string[]); }, [store, visiblePetIds]);
   const hiddenWithRequests = snapshot ? agents.filter(agent => !showSubagents && agent.parentAgentId && attentionFor(agent, snapshot).count > 0) : [];
   const attentionTotal = snapshot ? agents.reduce((total, agent) => total + attentionFor(agent, snapshot).count, 0) : 0;
   const activeCount = agents.filter(agent => agent.runtimeState !== 'closed').length;
@@ -93,7 +96,7 @@ export function App({ store, onPresentationAction }: AppProps) {
     <main id="office"><div className="page-intro"><div><div className="eyebrow intro-eyebrow"><span/> WELCOME TO YOUR WORKDAY</div><h1>Good work. <em>Good company.</em></h1><p>Your existing Codex agents, with a little room to roam.</p></div><div className="office-counts"><div><strong>{String(activeCount).padStart(2, '0')}</strong><span>in the office</span></div><span className="count-divider"/><div className={attentionTotal ? 'count-attention' : ''}><strong>{String(attentionTotal).padStart(2, '0')}</strong><span>need attention</span></div></div></div>
       <div className="workspace"><div className="office-column"><section className="office-panel" aria-labelledby="office-heading"><div className="office-toolbar"><div><span className="panel-index">01 / THE FLOOR</span><h2 id="office-heading">The shared office <span className="presentation-badge" data-testid="presentation-state">{presentation === 'ready' ? 'Ready when you are' : presentation === 'arrivals' ? 'Arrivals' : presentation === 'standup' ? 'Standup' : 'Live view'}</span></h2></div><div className="presentation-actions">{presentation === 'ready' ? <button className="primary-button" type="button" data-testid="start-day" disabled={!canControl} onClick={() => void act('start')}>{pendingAction === 'start' ? 'Starting…' : 'Start the day'}<span aria-hidden="true">↗</span></button> : <>{snapshot?.presentation.canSkip && <button className="primary-button" type="button" data-testid="skip-standup" disabled={!canControl} onClick={() => void act('skip')}>Skip to live office<span aria-hidden="true">→</span></button>}<button className="quiet-button" type="button" data-testid="reset-scene" disabled={!canControl} onClick={() => void act('reset')}><span aria-hidden="true">↻</span> Reset scene</button></>}</div></div>
         {actionError && <p className="action-error" role="alert">{actionError}</p>}
-        <OfficeScene snapshot={snapshot} selectedAgentId={selectedAgentId} visibleAgents={visibleAgents} onSelectAgent={store.selectAgent}/>
+        <OfficeScene snapshot={snapshot} selectedAgentId={selectedAgentId} visibleAgents={visibleAgents} onSelectAgent={store.selectAgent} meeting={meetings.active} onMeetingComplete={store.completeMeeting} hiddenHandoffCount={meetings.hiddenSignals.length}/>
         <div className="office-footnote"><span><span className="footnote-square"/> One shared space. Every project welcome.</span><span>Start, skip and reset change the scene only.</span></div>
       </section>
       {presentation === 'standup' && <section className="standup-summary" data-testid="standup-summary" aria-label="Observed standup updates"><span className="eyebrow">AROUND THE ROOM</span><h2>A quick check-in.</h2><p>Current tasks from the source. Work continues during the standup.</p><div>{agents.filter(agent => !agent.parentAgentId).map(agent => <button type="button" key={agent.agentId} onClick={() => store.selectAgent(agent.agentId)}><strong>{agent.displayName}</strong><span>{agent.task ?? 'Current task not available.'}</span></button>)}</div></section>}

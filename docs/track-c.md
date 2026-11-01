@@ -42,6 +42,14 @@ window.dispatchEvent(new CustomEvent('petstown:select-agent', {
 
 Use the stable `agentId` from the snapshot. The app subscribes to this event and calls `store.selectAgent(agentId)`. Selection does not alter agent execution or dismiss attention. Recent visible activity remains on each `agent.recentActivity`; the shared store is in [src/client/store.ts](../src/client/store.ts).
 
+## Handoff scene integration
+
+The browser entrypoint uses `createHandoffStore` to route ordered source events through the merged meeting controller and the existing inspection store exactly once. Snapshot handoff history seeds deduplication without replaying meetings. Connection loss cancels presentation; it never changes agent execution.
+
+`App` supplies the IDs of visible pets to the controller and passes its active meeting into `OfficeScene`. The scene moves only the named pair, shows the source summary, returns them home and acknowledges the exact meeting token. Reset, hidden participants and agent failure cancel obsolete choreography. Hidden handoff counts remain visible without revealing hidden pets. Replies and request attention are independent of movement.
+
+This is a consumer of the shared `handoff.observed` contract. Lane B must still supply verified real source events with both agent IDs and stable correlation; the metadata-only adapter continues to report handoffs unsupported. Synthetic browser checks prove the UI path, not that native handoff observation works.
+
 ## Development and acceptance evidence
 
 `npm run office -- --fixture` supplies labelled synthetic agents, requests and handoffs for development. `npm run dev:all -- --fixture` runs the bridge with Vite on the development proxy setup. Both are useful for repeatable inspection and reconnect checks; neither establishes a real Codex integration. Follow the [README](../README.md#run-the-app) for build, options and checks.

@@ -57,6 +57,7 @@ export function createHandoffController(options: { store?: OfficeStore; maxQueue
       refreshAgents();
     },
     complete(token: MeetingToken) { return queue.complete(token); },
+    reset() { queue.reset(); },
     getState: () => queue.getState(),
     drainEffects: () => queue.drainEffects(),
   };
