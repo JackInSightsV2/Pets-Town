@@ -1,6 +1,6 @@
 # Track C integration handoff
 
-This branch supplies the local HTTP/SSE bridge, browser office, immutable client store, inspection panel, presentation controls and launch scripts. It supports development fixtures and an injected observation adapter. It does not establish that live Codex observation or the integrated demo has passed acceptance.
+This branch supplies the local HTTP/SSE bridge, browser office, immutable client store, inspection panel, presentation controls and launch scripts. Normal launch selects the scoped read-only Codex metadata observer; explicit fixtures and custom adapters are also supported. Live metadata and active-goal inspection have been verified on the demo Mac. Real request resolution and the integrated handoff demo remain unverified.
 
 Team ownership stays as recorded in the [delivery plan](../plan.md): lane A owns scene choreography and project layout; lane B owns live Codex observation, real handoffs and eventual replies; lane C owns the app shell, inspection and demo packaging. Use the [office contract](contracts/office-v1.md) when integrating across lanes.
 
@@ -68,4 +68,13 @@ For [#6 — integrated demo](../.claude/epics/petstown-hackathon/6.md), still ca
 - Tested commit/build, runtime, invocation, asset setup and evidence, followed by a known-working checkpoint and team acceptance on the demo Mac.
 - If plugin packaging is selected, actual installation and skill completion/invocation testing; copying plugin files is insufficient.
 
-Root will add observed browser results separately. This document does not close #3 or #6, and does not claim voice (#8) or live computer view (#9) delivery.
+## Acceptance checkpoint — 2026-11-01
+
+| Requirement | Observed evidence | Remaining gate |
+| --- | --- | --- |
+| #3 identity, task context, selection and connection state | Four real existing agents, one explicit active goal; selection survived live status changes/reconnect. Missing activity remains explicit. | A real pending request and matching original-client resolution; fixture request tests do not satisfy this. |
+| #6 launch, reuse and assets | Built-in observer launched on the Mac with no adapter argument; matching scope/socket launch reused its bridge; genuine pets rendered. Build and five browser checks passed at `8e495fb`. | A teammate runs the final 90-second sequence after #2/#4/#5 integration; CLI skill discovery is not a demonstrated CLI invocation. |
+| #4 presentation contribution | Main scene consumes the meeting controller; labelled fixture movement, summary, return, reset/hide cancellation and replay suppression pass. | Real native exchange capture and event delivery remain B-track work. |
+| #8 voice / #9 computer view | Not implemented; explicitly retained as stretch work. | Agreed #7 → #8 → #9 checkpoint order, supported live sources, and their respective acceptance checks. |
+
+PR #17 contains the current C integration. Three CI jobs (inspection, observer, handoff checks) passed on `8e495fb`. This checkpoint does not close #3/#6 or substitute fixtures for the required real source evidence.
