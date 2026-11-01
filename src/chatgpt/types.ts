@@ -1,6 +1,6 @@
 import type { OfficeSnapshot } from '../shared/contract';
 
-export const OFFICE_RESOURCE_URI = 'ui://petstown/office-v1.html';
+export const OFFICE_RESOURCE_URI = 'ui://petstown/office-v2.html';
 export interface OfficeView {
   snapshot: OfficeSnapshot;
   scopeId: string;

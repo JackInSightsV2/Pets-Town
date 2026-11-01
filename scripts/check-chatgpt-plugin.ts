@@ -35,11 +35,11 @@ try {
   const server = data.find((item: { name: string }) => item.name === 'petstown');
   const expected = ['show_office', 'refresh_office', 'inspect_agent'];
   if (!server || server.toolsError || expected.some(name => !server.tools[name])
-    || !server.resources.some((resource: { uri: string }) => resource.uri === 'ui://petstown/office-v1.html')) {
+    || !server.resources.some((resource: { uri: string }) => resource.uri === 'ui://petstown/office-v2.html')) {
     throw new Error('Desktop could not discover all PetsTown tools and its office resource.');
   }
   console.log(JSON.stringify({ plugin: plugin.summary.id, version: plugin.summary.localVersion,
-    discoveredByRunningDesktop: true, tools: expected, resource: 'ui://petstown/office-v1.html', toolsError: server.toolsError,
+    discoveredByRunningDesktop: true, tools: expected, resource: 'ui://petstown/office-v2.html', toolsError: server.toolsError,
     visualAcceptance: 'Not checked by this probe.' }, null, 2));
 } finally {
   for (const request of pending.values()) clearTimeout(request.timer);

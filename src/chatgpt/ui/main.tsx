@@ -1,4 +1,5 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
+import { officeGeometry } from '../../office/environment';
 import { createRoot } from 'react-dom/client';
 import { OfficeScene } from '../../ui/OfficeScene';
 import { NativePet } from '../../ui/NativePet';
@@ -8,6 +9,17 @@ import '../../ui/styles.css';
 import './embedded.css';
 
 function EmbeddedOffice({ controller }: { controller: EmbeddedController }) {
+  const sceneContainer = useRef<HTMLDivElement>(null);
+  const [sceneScale, setSceneScale] = useState(1);
+  useLayoutEffect(() => {
+    const element = sceneContainer.current;
+    if (!element) return;
+    const resize = () => setSceneScale(Math.min(1, element.clientWidth / officeGeometry.canvas!.width));
+    resize();
+    const observer = new ResizeObserver(resize);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   const host = useSyncExternalStore(controller.subscribe, controller.getState, controller.getState);
   const { store } = controller;
   const state = useSyncExternalStore(store.subscribe, store.getState, store.getState);
@@ -39,8 +51,9 @@ function EmbeddedOffice({ controller }: { controller: EmbeddedController }) {
     </header>
     {host.message && <p className="embedded-notice" role="status">{host.message}</p>}
     {snapshot && stale && <p className="embedded-notice" role="status">{snapshot.connection.message ?? 'Live observation is unavailable. These details may have changed.'}</p>}
-    {snapshot && <div className="embedded-scene"><OfficeScene snapshot={sceneSnapshot} selectedAgentId={state.selectedAgentId}
-      visibleAgents={agents} onSelectAgent={store.selectAgent} meeting={meetings.active} onMeetingComplete={store.completeMeeting} /></div>}
+    <div ref={sceneContainer} className="embedded-scene" style={{ '--scene-scale': sceneScale, '--scene-height': `${officeGeometry.canvas!.height * sceneScale}px` } as CSSProperties}>
+      {snapshot && <OfficeScene geometry={officeGeometry} autoFrame={false} observerConnected={!stale} snapshot={sceneSnapshot} selectedAgentId={state.selectedAgentId}
+      visibleAgents={agents} onSelectAgent={store.selectAgent} meeting={meetings.active} onMeetingComplete={store.completeMeeting} />}</div>
     {snapshot && agents.length === 0 && <p className="embedded-empty">{stale ? 'No agents are available from the current source.' : 'No active agents in this project scope.'}</p>}
     {agents.length > 0 && snapshot && <div className="embedded-roster" aria-label="Agents">
       {agents.map(agent => {

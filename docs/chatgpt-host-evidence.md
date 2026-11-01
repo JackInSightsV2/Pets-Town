@@ -110,3 +110,11 @@ A controlled packaging comparison established that adding a compatibility overla
 Version **0.1.1** was installed through the running desktop’s `plugin/install` API. Its `mcpServerStatus/list` now discovers `show_office`, `refresh_office`, `inspect_agent`, and `ui://petstown/office-v1.html`; `toolsError` is null. `npm run check:chatgpt:plugin` preserves this real-host discovery check. The earlier direct SDK smoke tests did not test host loading and therefore missed this defect.
 
 Actual in-chat rendering still requires a fresh invocation. Server discovery is now verified through the host, independently of visual acceptance.
+
+## Embedded viewport and refresh correction — 0.1.2
+
+After the main merge, the built UI differed from the installed plugin UI: the package had not been rebuilt/reinstalled. The embedded entrypoint also omitted main's 1000px office geometry, while seating styles targeted the standalone canvas. Version 0.1.2 packages the merged renderer, supplies the same geometry, and applies its 54px/36px role sizes (75%/50% of the 72px base). The embedded camera fits the office and disables automatic framing; the standalone renderer retains its existing default framing.
+
+Desktop logs additionally reported `Office scope changed` on widget refresh. The scope fingerprint incorrectly included the bridge's random process epoch. It now fingerprints the normalized explicit directory allowlist; it still rejects another project scope. Two independent installed MCP server processes successfully performed show → refresh against six live agents with distinct epochs and the same scope.
+
+The UI resource is now `ui://petstown/office-v2.html` to avoid reusing an old cached template. Running desktop discovery confirms version 0.1.2 and the new resource. Seven embedded browser checks, four server checks and three standalone movement/seating checks passed; typecheck/build passed. The fixed-camera screenshot was visually inspected. Actual host rendering of this updated resource remains a separate user check.

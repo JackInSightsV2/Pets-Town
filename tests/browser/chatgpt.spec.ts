@@ -184,3 +184,24 @@ test('a new conversational selection wins over an older same-scope refresh', asy
   await page.evaluate(() => { (window as unknown as { pending: (() => void)[] }).pending.shift()?.(); });
   await expect(frame.getByTestId('embedded-details')).toContainText('Willow');
 });
+
+test('embedded office uses main geometry, role sizes and a stationary viewport', async ({ page }) => {
+  const frame = await mount(page);
+  await page.evaluate(() => {
+    const host = window as unknown as { hostResult: { _meta: { office: OfficeView } }; notify(method: string, params: unknown): void };
+    host.hostResult._meta.office.snapshot.agents[1].parentAgentId = 'maple';
+    host.notify('ui/notifications/tool-result', host.hostResult);
+  });
+  // CSS zoom quantizes computed widths to subpixels. Verify the design sizes.
+  for (const [id, size] of [['maple', 54], ['willow', 36]] as const) {
+    await expect.poll(() => frame.getByTestId(`scene-agent-${id}`).locator('.native-pet')
+      .evaluate((e, expected) => Math.abs(parseFloat(getComputedStyle(e).width) - expected), size)).toBeLessThan(0.05);
+  }
+  await expect(frame.locator('.office-map-artwork')).toHaveAttribute('style', /width: 1000px/);
+  const viewport = frame.getByTestId('office-map-viewport');
+  await expect.poll(() => viewport.evaluate(e => [e.scrollLeft, e.scrollTop])).toEqual([0, 0]);
+  await frame.getByRole('button', { name: 'Refresh office' }).click();
+  await frame.getByRole('button', { name: 'Expand', exact: true }).click();
+  await expect.poll(() => viewport.evaluate(e => [e.scrollLeft, e.scrollTop])).toEqual([0, 0]);
+  await frame.getByTestId('embedded-office').screenshot({ path: '/tmp/petstown-fixed-camera.png' });
+});

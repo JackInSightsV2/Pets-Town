@@ -22,6 +22,7 @@ export interface OfficeSceneProps {
   hiddenHandoffCount?: number;
   geometry?: Partial<OfficeGeometry>;
   observerConnected?: boolean;
+  autoFrame?: boolean;
 }
 
 type MeetingPhase = 'approaching' | 'exchanging' | 'returning' | 'complete';
@@ -53,7 +54,7 @@ function spreadPoint(index: number, anchor: Point, geometry: OfficeGeometry, fro
     y: fromBottom && row <= rowsAbove ? y - row * geometry.spacing.y : y + (fromBottom ? row - rowsAbove : row) * geometry.spacing.y };
 }
 /** Replaceable scene boundary: the renderer only observes snapshots and reports selection. */
-export function OfficeScene({ snapshot, selectedAgentId, visibleAgents, onSelectAgent, meeting = null, onMeetingComplete, geometry, observerConnected = true }: OfficeSceneProps) {
+export function OfficeScene({ snapshot, selectedAgentId, visibleAgents, onSelectAgent, meeting = null, onMeetingComplete, geometry, observerConnected = true, autoFrame = true }: OfficeSceneProps) {
   const [hover, setHover] = useState<{ agentId: string; anchor: Point } | null>(null);
   const hoveredAgent = hover && hover.agentId !== selectedAgentId ? visibleAgents.find(agent => agent.agentId === hover.agentId) : null;
   const geometryKey = JSON.stringify(geometry ?? {});
@@ -85,7 +86,7 @@ export function OfficeScene({ snapshot, selectedAgentId, visibleAgents, onSelect
   }
   const hasPets = nativeAgents.length > 0;
   useLayoutEffect(() => {
-    if (!hasPets || !viewport.current) return;
+    if (!autoFrame || !hasPets || !viewport.current) return;
     const view = viewport.current;
     if (state === 'ready') {
       view.scrollTop = Math.max(0, layout.entrance.y + 60 - view.clientHeight);
@@ -102,7 +103,7 @@ export function OfficeScene({ snapshot, selectedAgentId, visibleAgents, onSelect
       const bottom = Math.max(...points.map(point => point.y)) + 100;
       view.scrollTop = bottom - top <= view.clientHeight ? Math.max(0, (top + bottom - view.clientHeight) / 2) : 0;
     }
-  }, [state, sessionId, hasPets, geometryKey]);
+  }, [state, sessionId, hasPets, geometryKey, autoFrame]);
   const key = meeting ? JSON.stringify([meeting.token.generation, meeting.token.serial, meeting.token.handoffId]) : '';
   const pair = meeting ? [meeting.handoff.fromAgentId, meeting.handoff.toAgentId] : [];
   const available = !!meeting && state === 'live' && pair.every(id => visibleAgents.some(agent => agent.agentId === id && agent.runtimeState !== 'closed' && agent.runtimeState !== 'error'));

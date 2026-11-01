@@ -29,7 +29,9 @@ export function officeView(input: OfficeSnapshot, allowedCwds: readonly string[]
   const ids = new Set(agents.map(a => a.agentId));
   const requests = input.pendingRequests.filter(r => ids.has(r.agentId)).slice(0, 500);
   const reply = unsupported(REPLY_LIMIT);
-  const scopeId = createHash('sha256').update(JSON.stringify([allowedCwds, input.bridgeEpoch])).digest('hex');
+  // Model and widget calls may use different MCP processes. Scope identifies
+  // the configured directories, not an observer process's random bridge epoch.
+  const scopeId = createHash('sha256').update(JSON.stringify([...allowed].sort())).digest('hex');
   const snapshot: OfficeSnapshot = {
     protocolVersion: 1, bridgeEpoch: input.bridgeEpoch, lastSeq: input.lastSeq,
     officeSessionId: input.officeSessionId, source: input.source,

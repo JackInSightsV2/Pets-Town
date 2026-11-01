@@ -72,9 +72,17 @@ test('MCP initialize, resource, tools, live refresh, restart rejection and read-
     const wrongAgent = await client.callTool({ name: 'inspect_agent', arguments: { agentId: 'unknown' } });
     assert.equal(wrongAgent.isError, true);
     current = snapshot(0, 'new-epoch');
-    const stale = await client.callTool({ name: 'refresh_office', arguments: { scopeId: data.scopeId } });
+    const restarted = await client.callTool({ name: 'refresh_office', arguments: { scopeId: data.scopeId } });
+    assert.equal(restarted.isError, undefined, 'same project scope survives a different MCP process epoch');
+    assert.equal((restarted.structuredContent as typeof data).scopeId, data.scopeId);
+    const stale = await client.callTool({ name: 'refresh_office', arguments: { scopeId: 'different-project-scope' } });
     assert.equal(stale.isError, true);
     assert.equal(stale._meta, undefined, 'no new-scope data on stale refresh');
   } finally { await app.close(); await client.close(); }
   assert.equal(closed, 1);
+});
+
+test('scope identity is stable across processes but changes with allowed projects', () => {
+  assert.equal(officeView(snapshot(0, 'a'), ['/project']).scopeId, officeView(snapshot(0, 'b'), ['/project']).scopeId);
+  assert.notEqual(officeView(snapshot(), ['/project']).scopeId, officeView(snapshot(), ['/other']).scopeId);
 });
