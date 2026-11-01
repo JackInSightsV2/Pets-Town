@@ -13,7 +13,7 @@ import {
 } from "../../ui/view-model";
 import { buildVenue } from "./venue";
 import { createVenueDisplay } from "./render";
-import { advancePoint } from "./movement";
+import { advanceAvoiding, createTargetReservations, nearestFreeFloor, PET_SPACING } from "./spacing";
 import type { CelebrationRun } from "./celebration";
 import { demoActivity, isDemoAgent } from "./demo";
 import { meetingPoints } from "./layout";
@@ -32,6 +32,7 @@ export interface VenueSceneProps extends OfficeSceneProps {
   onLifecycleComplete?: (token: LifecycleToken) => unknown;
 }
 interface Pet {
+  repathAt: number;
   celebrationId?: string;
   lifecycle?: SpriteLifecycle;
   lifecycleKey: string;
@@ -115,6 +116,7 @@ export function createVenueScene(
   scene.add(display);
   const pets = new Map<string, Pet>();
   const placement = createVenuePlacement();
+  const reservations = createTargetReservations();
   const overrides = new Map<string, FloorPoint>();
   let props: VenueSceneProps = {
     snapshot: null,
@@ -182,6 +184,9 @@ export function createVenueScene(
     p.label.remove();
   }
   function add(agent: OfficeAgent, asset: PetAsset) {
+    const demo = demoActivity(agent.agentId, props.demoStep ?? 0);
+    const origin = nearestFreeFloor(demo && !props.celebration ? demo : { x: -8.7, z: 0.4 }, [...pets.values()].map(pet => ({ x: pet.position.x, z: pet.position.z })));
+    if (!origin) return null;
     const texture = new T.Texture();
     texture.colorSpace = T.SRGBColorSpace;
     texture.minFilter = T.LinearFilter;
@@ -224,11 +229,10 @@ export function createVenueScene(
     };
     label.onpointerdown = (e) => e.stopPropagation();
     labels.append(label);
-    const demo = demoActivity(agent.agentId, props.demoStep ?? 0);
-    const origin = nearestFloor(demo && !props.celebration ? demo : { x: -8.7, z: 0.4 });
     const p: Pet = {
       agent,
       asset,
+      repathAt: 0,
       lifecycleKey: "", lifecycleSince: performance.now(), completedKey: "",
       sprite,
       texture,
@@ -298,12 +302,13 @@ export function createVenueScene(
         pets.delete(agent.agentId);
         p = undefined;
       }
-      p ??= add(agent, asset);
+      if (!p) p = add(agent, asset) ?? undefined;
+      if (!p) continue;
       p.agent = agent;
       if (isDemoAgent(agent.agentId) && next.celebration && p.celebrationId !== next.celebration.id) {
         p.celebrationId = next.celebration.id;
-        const origin = nearestFloor({ x: -8.7, z: 0.4 });
-        p.position.set(origin.x, 0.06, origin.z); p.target = origin; p.path = [];
+        const origin = nearestFreeFloor({ x: -8.7, z: 0.4 }, [...pets.values()].filter(other => other !== p).map(other => ({ x: other.position.x, z: other.position.z })));
+        if (origin) { p.position.set(origin.x, 0.06, origin.z); p.target = origin; p.path = []; }
         overrides.delete(agent.agentId);
       }
       p.lifecycle = lifecycles.get(agent.agentId);
@@ -427,9 +432,29 @@ export function createVenueScene(
     last = now;
     controls.update();
     let i = 0;
+    const targets = reservations.map([...pets.values()].map(p => ({ id: p.agent.agentId, desired: destination(p, i++),
+      fixed: !isDemoAgent(p.agent.agentId) && (p.lifecycle?.phase === 'dying' || p.lifecycle?.phase === 'sleeping' || props.observerConnected === false || props.snapshot?.connection.status !== 'connected') })));
+    // A completely packed venue keeps its already-safe positions rather than
+    // using an unreserved fallback destination that could overlap another pet.
+    const packed = targets.size !== pets.size;
+    if (packed) {
+      targets.clear();
+      for (const p of pets.values()) targets.set(p.agent.agentId, { x: p.position.x, z: p.position.z });
+    }
+    // Reduced motion moves the whole allocation atomically; targets are mutually disjoint.
+    if (reduced) for (const p of pets.values()) {
+      const target = targets.get(p.agent.agentId);
+      if (target) p.position.set(target.x, 0.06, target.z);
+    }
     for (const p of pets.values()) {
-      const target = destination(p, i++);
+      const target = targets.get(p.agent.agentId) ?? { x: p.position.x, z: p.position.z };
       setTarget(p, target);
+      const held = packed || !isDemoAgent(p.agent.agentId) && (p.lifecycle?.phase === 'dying' || p.lifecycle?.phase === 'sleeping' || props.observerConnected === false || props.snapshot?.connection.status !== 'connected');
+      if (held) p.path = [];
+      const peers = [...pets.values()].filter(other => other !== p).map(other => ({ x: other.position.x, z: other.position.z }));
+      if (!reduced && !held && p.path.length === 0 && Math.hypot(p.position.x - target.x, p.position.z - target.z) > 0.05 && now - p.repathAt > 500) {
+        p.path = floorPath({ x: p.position.x, z: p.position.z }, target, peers, PET_SPACING); p.repathAt = now;
+      }
       let moving = p.path.length > 0;
       let dx = 0;
       if (reduced) {
@@ -439,9 +464,12 @@ export function createVenueScene(
       } else if (moving) {
         const next = p.path[0];
         dx = next.x - p.position.x;
-        const advanced = advancePoint({ x: p.position.x, z: p.position.z }, next, dt);
+        const advanced = advanceAvoiding({ x: p.position.x, z: p.position.z }, next, dt, peers);
         p.position.set(advanced.x, 0.06, advanced.z);
         if (advanced.arrived) p.path.shift();
+        if (advanced.blocked && now - p.repathAt > 500) {
+          p.path = floorPath({ x: p.position.x, z: p.position.z }, target, peers, PET_SPACING); p.repathAt = now;
+        }
       }
       const phase = p.lifecycle?.phase;
       const visualState = p.lifecycle?.status === "started" && p.agent.runtimeState === "unknown" ? "working" : p.agent.runtimeState;
@@ -465,7 +493,7 @@ export function createVenueScene(
         : Math.floor((now / 1000) * anim.fps) % anim.frames;
       p.label.dataset.animation = lifecycleAnimation ?? (moving ? "running" : demoAnimation ?? "");
       const finished = phase === "dying" ? elapsed >= (reduced ? 100 : anim.frames / anim.fps * 1000)
-        : (phase === "entering" || phase === "leaving") && !moving;
+        : (phase === "entering" || phase === "leaving") && !moving && Math.hypot(p.position.x - target.x, p.position.z - target.z) < 0.12;
       if (finished && p.lifecycle?.token && p.completedKey !== p.lifecycleKey && props.observerConnected !== false && props.snapshot?.connection.status === "connected") {
         p.completedKey = p.lifecycleKey;
         props.onLifecycleComplete?.(p.lifecycle.token);
@@ -474,6 +502,8 @@ export function createVenueScene(
         f / p.asset.columns,
         1 - (anim.row + 1) / p.asset.rows,
       );
+      p.label.dataset.worldX = String(p.position.x);
+      p.label.dataset.worldZ = String(p.position.z);
       p.sprite.position.copy(p.position);
       p.ring.position.set(p.position.x, 0.035, p.position.z);
       p.ring.visible = props.selectedAgentId === p.agent.agentId;

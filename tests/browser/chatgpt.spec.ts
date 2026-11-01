@@ -17,9 +17,9 @@ function fixture(): OfficeView {
   data.capabilities.observeAgents = { supported: true, reason: null };
   return { snapshot: data, scopeId: 'test-scope', selectedAgentId: null, projectId: null };
 }
-async function mount(page: Page, modes = ['inline', 'fullscreen', 'pip']) {
+async function mount(page: Page, modes = ['inline', 'fullscreen', 'pip'], initialView = fixture()) {
   const html = await readFile('dist-chatgpt/office.html', 'utf8');
-  const result = { content: [], _meta: { office: fixture() } };
+  const result = { content: [], _meta: { office: initialView } };
   const hostHtml = `<!doctype html><html><body style="margin:0"><iframe title="PetsTown" src="https://petstown-ui.test/" style="border:0;width:100%;height:950px"></iframe><script>
     window.hostResult = ${JSON.stringify(result)};
     window.calls = []; window.contexts = []; window.messages = [];
@@ -344,4 +344,61 @@ test('conversation celebration IDs trigger once and refresh results cannot resta
   await expect(scene).toHaveAttribute('data-celebration', 'idle');
   await expect(frame.locator('.venue-pet-label[data-demo="true"]')).toHaveCount(0);
   await expect(frame.getByTestId('embedded-agent-maple')).toBeVisible();
+});
+
+test('crowded real and demo pets stay separated through natural movement and every celebration phase', async ({ page }) => {
+  test.setTimeout(40_000);
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  const view = fixture();
+  for (let index = 0; index < 5; index++) view.snapshot.agents.push({
+    ...agent(`crowd-${index}`), displayName: `Observed ${index + 1}`, petAssetId: builtInPets[index % builtInPets.length].assetId,
+  });
+  const frame = await mount(page, ['inline', 'fullscreen', 'pip'], view);
+  const pets = frame.locator('.venue-pet-label[data-world-x][data-world-z]');
+  await expect(pets).toHaveCount(15);
+  const sample = (finishOnIdle: boolean) => frame.getByTestId('office-scene').evaluate((scene, finishOnIdle) => new Promise<{
+    frames: number; minimum: number; phases: string[]; moved: string[]; violations: { first: string; second: string; distance: number }[];
+  }>(resolve => {
+    const start = performance.now(), phases = new Set<string>(), starts = new Map<string, { x: number; z: number }>(), moved = new Set<string>();
+    const result = { frames: 0, minimum: Infinity, phases: [] as string[], moved: [] as string[], violations: [] as { first: string; second: string; distance: number }[] };
+    const tick = () => {
+      const phase = scene.getAttribute('data-celebration') ?? 'unknown';
+      phases.add(phase);
+      const pets = [...scene.querySelectorAll<HTMLElement>('.venue-pet-label')].map(element => ({
+        id: element.dataset.testid!, x: Number(element.dataset.worldX), z: Number(element.dataset.worldZ),
+      }));
+      for (const pet of pets) {
+        const origin = starts.get(pet.id);
+        if (!origin) starts.set(pet.id, { x: pet.x, z: pet.z });
+        else if (Math.hypot(pet.x - origin.x, pet.z - origin.z) > 0.2) moved.add(pet.id);
+      }
+      for (let i = 0; i < pets.length; i++) for (let j = i + 1; j < pets.length; j++) {
+        const distance = Math.hypot(pets[i].x - pets[j].x, pets[i].z - pets[j].z);
+        result.minimum = Math.min(result.minimum, distance);
+        if ((!Number.isFinite(distance) || distance < 0.9) && result.violations.length < 5)
+          result.violations.push({ first: pets[i].id, second: pets[j].id, distance });
+      }
+      result.frames++;
+      if (finishOnIdle ? (phase === 'idle' || performance.now() - start > 23000) : performance.now() - start >= 1000) {
+        result.phases = [...phases]; result.moved = [...moved]; resolve(result);
+      } else requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }), finishOnIdle);
+  const ordinary = await sample(false);
+  expect(ordinary.frames).toBeGreaterThan(5);
+  expect(ordinary.violations).toEqual([]);
+  expect(ordinary.minimum).toBeGreaterThanOrEqual(0.9);
+  await frame.getByRole('button', { name: 'Celebrate', exact: true }).click();
+  await expect(frame.getByTestId('office-scene')).toHaveAttribute('data-celebration', 'entering');
+  const celebration = sample(true);
+  await expect(frame.getByTestId('office-scene')).toHaveAttribute('data-celebration', 'cheering', { timeout: 15000 });
+  await frame.getByTestId('embedded-office').screenshot({ path: '/tmp/petstown-crowd-spacing.png' });
+  const completed = await celebration;
+  expect(completed.phases).toEqual(['entering', 'working', 'cheering', 'leaving', 'idle']);
+  expect(completed.frames).toBeGreaterThan(60);
+  expect(completed.violations).toEqual([]);
+  expect(completed.minimum).toBeGreaterThanOrEqual(0.9);
+  expect(completed.moved.filter(id => id.includes('petstown-demo:'))).toHaveLength(8);
+  await expect(pets).toHaveCount(7);
 });

@@ -57,6 +57,7 @@ const cells: FloorPoint[] = [];
 for (let x = -10; x <= 8; x += step)
   for (let z = -9; z <= 8; z += step)
     if (walkable({ x, z })) cells.push({ x, z });
+export const floorCells: readonly FloorPoint[] = cells;
 const key = (p: FloorPoint) => `${p.x},${p.z}`;
 const grid = new Map(cells.map((p) => [key(p), p]));
 export function nearestFloor(
@@ -74,9 +75,11 @@ export function nearestFloor(
       cells.find((c) => !excluded.has(key(c))) ?? cells[0],
     );
 }
-export function floorPath(from: FloorPoint, to: FloorPoint): FloorPoint[] {
-  const start = nearestFloor(from),
-    end = nearestFloor(to),
+export function floorPath(from: FloorPoint, to: FloorPoint, occupied: readonly FloorPoint[] = [], clearance = 0.95): FloorPoint[] {
+  const excluded = new Set(cells.filter(cell => occupied.some(point => Math.hypot(cell.x - point.x, cell.z - point.z) < clearance)).map(key));
+  if (excluded.size === cells.length) return [];
+  const start = nearestFloor(from, excluded),
+    end = nearestFloor(to, excluded),
     queue = [start],
     previous = new Map<string, string | null>([[key(start), null]]);
   for (let i = 0; i < queue.length; i++) {
@@ -90,7 +93,7 @@ export function floorPath(from: FloorPoint, to: FloorPoint): FloorPoint[] {
     ]) {
       const q = { x: p.x + dx, z: p.z + dz },
         k = key(q);
-      if (grid.has(k) && !previous.has(k)) {
+      if (grid.has(k) && !excluded.has(k) && !previous.has(k)) {
         previous.set(k, key(p));
         queue.push(q);
       }
