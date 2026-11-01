@@ -1,9 +1,9 @@
 ---
 name: petstown-hackathon
 description: A presenter-controlled pet office that visualizes existing Codex agents and real collaboration.
-status: backlog
+status: active
 created: 2026-11-01T12:49:59Z
-updated: 2026-11-01T13:05:05Z
+updated: 2026-11-01T15:22:43Z
 ---
 
 # PRD: PetsTown hackathon

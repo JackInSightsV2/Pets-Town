@@ -20,6 +20,8 @@ export interface MetadataAdapterOptions {
   sourceDescription?: string;
   pollMs?: number;
   now?: () => string;
+  /** Called after scoped rows and connection state are applied for a successful poll. */
+  onPollComplete?: () => void;
 }
 type JsonObject = Record<string, unknown>;
 const object = (v: unknown): v is JsonObject => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -142,6 +144,7 @@ export async function createMetadataAdapter(options: MetadataAdapterOptions): Pr
       }
       connection({ status: 'connected', lastObservedAt: observedAt,
         message: [options.sourceDescription ?? 'Live metadata polling. Item activity, request details and handoffs are unavailable.', rpc.healthMessage].filter(Boolean).join(' ') });
+      options.onPollComplete?.();
     } catch {
       if (stopped) return;
       rpc?.close(); rpc = null;

@@ -10,10 +10,9 @@ function handoff(summary: string): OfficeHandoff {
   const id = randomUUID();
   return { handoffId: id, fromAgentId: 'maple', toAgentId: 'willow', summary, occurredAt: new Date().toISOString(), sourceItemId: `source-${id}` };
 }
-async function live(page: Page) {
-  await page.getByTestId('start-day').click();
-  await page.getByTestId('skip-standup').click();
-  await expect(page.getByTestId('presentation-state')).toHaveText('Live view');
+async function live(page: Page, request: APIRequestContext) {
+  await expect(page.getByTestId('office-scene')).toHaveAttribute('data-presentation', 'live');
+  await expect.poll(async () => ((await (await request.get('/api/office')).json()) as OfficeSnapshot).presentation.state).toBe('live');
 }
 
 test.beforeEach(async ({ request }) => {
@@ -27,8 +26,7 @@ test('fresh SSE handoff moves the pair, shows its summary, returns home and igno
   const historic = handoff('Historical fixture exchange');
   await emit(request, 'handoff.observed', 'maple', { handoff: historic });
   await page.goto('/');
-  await page.getByRole('checkbox', { name: 'Show subagents' }).check();
-  await live(page);
+  await live(page, request);
   const scene = page.getByTestId('office-scene');
   await expect(scene).toHaveAttribute('data-meeting', '');
   const maple = page.getByTestId('scene-agent-maple');
@@ -53,36 +51,34 @@ test('fresh SSE handoff moves the pair, shows its summary, returns home and igno
   // A distinct transport event replaying the same source handoff must not animate twice.
   await emit(request, 'handoff.observed', 'maple', { handoff: fresh });
   await emit(request, 'agent.state.changed', 'maple', { runtimeState: 'idle' });
-  await expect(page.getByTestId('agent-button-maple')).toContainText(/idle/i);
+  await expect(maple).toHaveAttribute('data-runtime-state', 'idle');
   await expect(scene).toHaveAttribute('data-meeting', '');
   await page.reload();
-  await expect(page.getByTestId('agent-button-maple')).toBeVisible();
+  await expect(page.getByTestId('scene-agent-maple')).toBeVisible();
   await expect(page.getByTestId('office-scene')).toHaveAttribute('data-meeting', '');
   await expect(page.getByTestId('handoff-summary')).toHaveCount(0);
 });
 
-test('reset cancels a meeting and hiding a participant never reveals it', async ({ page, request }) => {
+test('backend reset and an observed participant failure cancel meetings', async ({ page, request }) => {
   await page.goto('/');
-  await page.getByRole('checkbox', { name: 'Show subagents' }).check();
-  await live(page);
+  await live(page, request);
   const scene = page.getByTestId('office-scene');
   const first = handoff('Fixture exchange cancelled by scene reset');
   await emit(request, 'handoff.observed', 'maple', { handoff: first });
   await expect(scene).toHaveAttribute('data-meeting', first.handoffId);
-  await page.getByTestId('reset-scene').click();
+  const snapshot = await (await request.get('/api/office')).json() as OfficeSnapshot;
+  await request.post('/api/presentation/reset', { headers: { 'X-Office-Token': snapshot.controlToken! } });
   await expect(scene).toHaveAttribute('data-meeting', '');
   await expect(page.getByTestId('handoff-summary')).toHaveCount(0);
-  await live(page);
+  for (const action of ['start', 'skip']) await request.post(`/api/presentation/${action}`, { headers: { 'X-Office-Token': snapshot.controlToken! } });
+  await live(page, request);
   await expect(scene).toHaveAttribute('data-meeting', '');
 
   const second = handoff('Fixture exchange with a subsequently hidden participant');
   await emit(request, 'handoff.observed', 'maple', { handoff: second });
   await expect(scene).toHaveAttribute('data-meeting', second.handoffId);
-  await page.getByRole('checkbox', { name: 'Show subagents' }).uncheck();
+  await emit(request, 'agent.state.changed', 'willow', { runtimeState: 'error' });
   await expect(scene).toHaveAttribute('data-meeting', '');
-  await expect(page.getByTestId('scene-agent-willow')).toHaveCount(0);
-  await expect(page.getByTestId('agent-button-willow')).toHaveCount(0);
-  await expect(page.getByTestId('hidden-handoff-count')).toBeVisible();
-  await expect(page.getByRole('checkbox', { name: 'Show subagents' })).not.toBeChecked();
+  await expect(page.getByTestId('scene-agent-willow')).toHaveAttribute('data-runtime-state', 'error');
   await expect(page.getByTestId('handoff-summary')).toHaveCount(0);
 });

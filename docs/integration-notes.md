@@ -1,6 +1,8 @@
 # PetsTown integration evidence
 
-Read-only findings gathered on 2026-11-01. These establish integration candidates, not a working PetsTown connection. Nothing has been installed or launched, and no private conversation content was inspected.
+Current implementation and acceptance status: [delivery status](delivery-status.md), [live Mac loop](evidence/live-office-loop.md), and [live movement](evidence/live-office-movement.md).
+
+The findings below are the historical pre-implementation investigation from 2026-11-01. Its statements about untested launch, discovery and handoffs are superseded by those later records; request ownership remains unresolved.
 
 ## CLI launcher
 
