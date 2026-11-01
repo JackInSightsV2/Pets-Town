@@ -60,7 +60,7 @@ export class ActivityNormalizer {
     const event = input.event;
     let item: unknown;
     if (object(event) && event.method === 'item/completed' && object(event.params) && event.params.threadId === input.threadId && event.params.turnId === input.turnId && object(event.params.item) && event.params.item.type === 'commandExecution') item = event.params.item;
-    else if (object(event) && event.type === 'event_msg' && object(event.payload) && event.payload.type === 'item_completed' && event.payload.turn_id === input.turnId && object(event.payload.item) && event.payload.item.type === 'CommandExecution') item = event.payload.item;
+    else if (object(event) && event.type === 'event_msg' && object(event.payload) && event.payload.type === 'item_completed' && event.payload.thread_id === input.threadId && event.payload.turn_id === input.turnId && object(event.payload.item) && event.payload.item.type === 'CommandExecution') item = event.payload.item;
     if (!object(item) || (item.type !== 'commandExecution' && item.type !== 'CommandExecution')) return { kind: 'ignored', reason: 'unsupported' };
     if (item.status !== 'completed' && item.status !== 'failed') return { kind: 'ignored', reason: 'unsupported' };
     if (!identity(item.id)) return { kind: 'unavailable', reason: 'missing-correlation' };
