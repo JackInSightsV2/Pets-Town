@@ -71,6 +71,7 @@ The JSON is an illustrative fixture, not evidence of a real run. source is codex
 | request.opened | Agent, request ID, kind, visible prompt/options when available, response capability and reason if unavailable. |
 | request.resolved | Exact request correlation and known resolution reason, including cancellation/interruption where appropriate. |
 | handoff.observed | Stable handoff ID, fromAgentId, toAgentId, concise supported summary and source correlation. |
+| capabilities.changed | Full replacement capabilities object; agentId null. Publish when observation support changes after bootstrap. This bridge continues to force replies unsupported. Loss of handoff support cancels active/queued visual meetings without clearing request attention; recovery does not replay old meetings. |
 | connection.changed | Bridge health and last observation; not agent success/failure. |
 | presentation.changed | Office session and presentation state; source office, never codex. |
 

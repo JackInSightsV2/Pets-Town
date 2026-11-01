@@ -30,7 +30,8 @@ export function createHandoffStore(): HandoffStore {
   function publish() {
     const state = store.getState();
     if (state.error || state.transport.status === 'disconnected' || state.transport.status === 'reconnecting'
-      || (state.snapshot && state.snapshot.connection.status !== 'connected')) {
+      || (state.snapshot && (state.snapshot.connection.status !== 'connected'
+        || !state.snapshot.capabilities.observeHandoffs.supported))) {
       // Keep the same queue: reset invalidates callbacks while retaining seen IDs.
       controller.reset();
     }

@@ -123,6 +123,8 @@ export function createOfficeStore(initial?: OfficeSnapshot): OfficeStore {
             break;
           }
           case 'handoff.observed': next.recentHandoffs = [e.data.handoff, ...next.recentHandoffs.filter(h => h.handoffId !== e.data.handoff.handoffId)].slice(0, 100); break;
+          case 'capabilities.changed': next.capabilities = { ...e.data.capabilities,
+            respondToRequests: { supported: false, reason: REPLIES_DISABLED } }; break;
           case 'connection.changed': next.connection = e.data.connection; break;
           case 'presentation.changed': next.officeSessionId = e.data.officeSessionId; next.presentation = { state: e.data.state, canSkip: e.data.canSkip }; break;
         }
