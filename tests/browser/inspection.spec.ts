@@ -33,7 +33,8 @@ test('real transport preserves selection and exact request lifecycle through pre
   await emit(request, 'agent.state.changed', 'maple', { runtimeState: 'waiting-for-input' });
   await expect(page.getByTestId('request-question-1')).toBeVisible();
   await expect(page.getByTestId('attention-maple')).toBeVisible();
-  await expect(page.getByTestId('reply-submit').first()).toBeDisabled();
+  await expect(page.getByTestId('reply-submit')).toHaveCount(0);
+  await expect(page.getByTestId('open-chat')).toHaveCount(0);
   await page.getByTestId('start-day').click();
   await page.getByTestId('skip-standup').click();
   await page.getByTestId('reset-scene').click();
@@ -50,6 +51,23 @@ test('real transport preserves selection and exact request lifecycle through pre
   await expect(page.getByTestId('selected-agent-name')).toHaveText('Maple');
   await page.screenshot({ path: 'test-results/office-desktop.png', fullPage: true });
   expect(errors).toEqual([]);
+});
+
+test('a synthetic local-source snapshot opens only the selected existing chat', async ({ page }) => {
+  await page.route('**/api/office', async route => {
+    const response = await route.fetch();
+    const snapshot = await response.json() as OfficeSnapshot;
+    // Synthetic source-mode switch verifies navigation identity, not live acceptance.
+    snapshot.source = 'codex';
+    await route.fulfill({ response, json: snapshot });
+  });
+  await page.goto('/');
+  await page.getByTestId('agent-button-maple').click();
+  await expect(page.getByTestId('open-chat')).toHaveAttribute('href', 'codex://threads/maple');
+  await page.getByTestId('scene-agent-willow').click();
+  await expect(page.getByTestId('selected-agent-name')).toHaveText('Willow');
+  await expect(page.getByTestId('open-chat')).toHaveAttribute('href', 'codex://threads/willow');
+  await expect(page.getByTestId('reply-input')).toHaveCount(0);
 });
 
 test('waiting details, source disconnect and runtime error remain distinguishable', async ({ page, request }) => {

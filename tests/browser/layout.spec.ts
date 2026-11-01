@@ -31,9 +31,9 @@ test('six projects and ten children expand without losing hidden request inspect
   try {
     await page.goto('/');
     await page.getByRole('checkbox',{name:'Show subagents'}).check();
-    for(let i=0;i<6;i++)await expect(page.getByTestId(`project-label-${prefix}-project-${i}`)).toHaveText(`Layout project ${i}`);
-    const areas=await Promise.all(Array.from({length:6},(_,i)=>page.getByTestId(`project-area-${prefix}-project-${i}`).getAttribute('style')));
-    expect(new Set(areas).size).toBe(6);
+    await expect(page.locator('.office-project-area, .office-project-label')).toHaveCount(0);
+    const homes=await Promise.all(Array.from({length:6},(_,i)=>page.getByTestId(`scene-agent-${prefix}-parent-${i}`).getAttribute('style')));
+    expect(new Set(homes).size).toBe(6);
     const sceneParent=page.getByTestId(`scene-agent-${parentId}`);
     const home=[await sceneParent.getAttribute('data-home-left'),await sceneParent.getAttribute('data-home-top')];
     await expect(page.getByTestId(`group-toggle-${parentId}`)).toContainText('Show all 10 subagents');
@@ -43,7 +43,7 @@ test('six projects and ten children expand without losing hidden request inspect
     await expect(page.locator(`[data-testid^="scene-agent-${prefix}-child-"]`)).toHaveCount(10);
     await expect(page.getByTestId(`group-toggle-${parentId}`)).toContainText('Show fewer subagents');
     await page.screenshot({path:'docs/evidence/track-c-layout-expanded.png',fullPage:true});
-    await page.getByTestId(`project-label-${prefix}-project-5`).scrollIntoViewIfNeeded();
+    await page.getByTestId(`scene-agent-${prefix}-parent-5`).scrollIntoViewIfNeeded();
     await page.screenshot({path:'docs/evidence/track-c-layout-sixth-project.png',fullPage:true});
     await emit(request,'request.opened',childId,{request:{requestId,agentId:childId,kind:'user-input',prompt:'Fixture: inspect this hidden child request',options:[],createdAt:new Date().toISOString(),responseCapability:{supported:false,reason:'Explicit browser fixture'},revision:'1'}});
     await page.getByRole('checkbox',{name:'Show subagents'}).uncheck();
