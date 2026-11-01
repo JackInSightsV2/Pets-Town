@@ -17,7 +17,7 @@ Four real pets remained present through ready, arrivals, standup and live phases
 
 Screenshots: [standup](live-movement-standup.png), [live office](live-movement-live.png), [command inspection](live-command-inspection.png).
 
-Focused verification: four browser movement/handoff checks passed; 16 activity/history checks passed; build/typecheck passed. JEV was unavailable. Controlled fixture checks prove idle/working/waiting transitions, skip/reset cancellation, and existing handoff behavior; they do not replace the live observations above.
+Focused verification: four browser movement/handoff checks passed; 19 activity/history/fallback checks passed after integrating main; build/typecheck passed. JEV was unavailable. Controlled fixture checks prove idle/working/waiting transitions, skip/reset cancellation, and existing handoff behavior; they do not replace the live observations above.
 
 ## Remaining
 
