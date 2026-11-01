@@ -101,3 +101,29 @@ test('stop detaches observer and closes reader only once',async()=>{
   assert.equal(h.closes(),1);
   h.items.set('a',[item('fresh')]); await delay(); assert.equal(h.events.length,0);
 });
+
+test('an observer gap fails closed and stops handoff delivery',async t=>{
+  const h=harness(); const adapter=await setup(h); t.after(()=>adapter.stop());
+  h.emit({protocolVersion:1,bridgeEpoch:'base',seq:2,eventId:'gap',occurredAt:at,source:'codex',
+    type:'agent.upserted',agentId:'c',data:{agent:agent('c')}});
+  assert.equal((await adapter.initialSnapshot()).connection.status,'disconnected');
+  assert.equal((await adapter.initialSnapshot()).capabilities.observeHandoffs.supported,false);
+  h.items.set('a',[item('old'),item('after-gap')]); await delay();
+  assert.equal(h.events.filter(e=>e.type==='handoff.observed').length,0);
+});
+
+test('events buffered during initial snapshot preserve one wrapper clock',async t=>{
+  const h=harness();
+  let listener:(event:OfficeEvent)=>void=()=>{};
+  let resolveSnapshot!:(snapshot:typeof h.snapshot)=>void;
+  const pending=new Promise<typeof h.snapshot>(resolve=>{resolveSnapshot=resolve;});
+  const base:OfficeAdapter={initialSnapshot:()=>pending,subscribe(fn){listener=fn;return()=>{};},stop(){}};
+  const creating=createHandoffHistoryAdapter({base,reader:h.reader,sourceVerified:true,sourceNamespace:'verified-runtime',pollMs:10,now:()=>at});
+  listener({protocolVersion:1,bridgeEpoch:'base',seq:1,eventId:'during-bootstrap',occurredAt:at,source:'codex',
+    type:'agent.upserted',agentId:'c',data:{agent:agent('c')}});
+  resolveSnapshot(h.snapshot);
+  const adapter=await creating; t.after(()=>adapter.stop());
+  const snapshot=await adapter.initialSnapshot();
+  assert.ok(snapshot.agents.some(a=>a.agentId==='c'));
+  assert.equal(snapshot.lastSeq,1);
+});
