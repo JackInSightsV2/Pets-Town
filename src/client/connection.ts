@@ -110,17 +110,20 @@ export function connectOffice(store: OfficeStore, options: { baseUrl?: string } 
   };
 }
 
-export async function presentationAction(store: OfficeStore, action: 'start' | 'skip' | 'reset', baseUrl = ''): Promise<void> {
+export async function presentationAction(store: OfficeStore, action: 'start' | 'skip' | 'reset', baseUrl = '', isCurrent = () => true): Promise<void> {
+  if (!isCurrent()) return;
   const token = store.getState().snapshot?.controlToken;
   if (!token) throw new Error('The office control token is unavailable. Refresh the office and try again.');
   const response = await fetch(endpoint(baseUrl, `/api/presentation/${action}`), {
     method: 'POST', headers: { 'X-Office-Token': token },
   });
+  if (!isCurrent()) return;
   if (!response.ok) throw new Error(`Unable to ${action} the office presentation (${response.status}).`);
   // The POST returns presentation metadata, not an ordered snapshot. Read the authoritative clock.
   const current = await fetch(endpoint(baseUrl, '/api/office'), { cache: 'no-store' });
   if (!current.ok) throw new Error(`Office snapshot request failed (${current.status}).`);
   const snapshot: unknown = await current.json();
+  if (!isCurrent()) return;
   if (!isOfficeSnapshot(snapshot)) throw new Error('Invalid office snapshot received.');
   store.applySnapshot(snapshot);
 }
