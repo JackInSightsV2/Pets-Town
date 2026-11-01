@@ -40,6 +40,12 @@ export class RolloutReader implements MetadataReader {
 
   close(): void { this.connected = false; this.rows.clear(); }
 
+  /** True only after the latest complete refresh retained this scoped identity. */
+  hasVerifiedThread(threadId: string, allowedCwds: ReadonlySet<string | null>): boolean {
+    const file = this.rows.get(threadId);
+    return this.connected && !!file?.cwd && allowedCwds.has(canonicalizeCwd(file.cwd));
+  }
+
   async call(method: 'thread/loaded/list' | 'thread/read' | 'thread/goal/get', params: Record<string, unknown>): Promise<unknown> {
     if (!this.connected) throw new Error('Reader is closed.');
     if (method === 'thread/goal/get') throw new MetadataRpcError(-32601);
