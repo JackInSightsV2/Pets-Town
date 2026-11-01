@@ -7,6 +7,7 @@ import type { ActivityEntry, OfficeEvent, OfficeSnapshot } from '../../shared/co
 import { createMetadataAdapter, type MetadataReader } from '../metadata-adapter.js';
 import { canonicalizeCwd } from '../observer-normalization.js';
 import { discoverRollouts } from '../rollout-discovery.js';
+import { watchRollouts } from '../rollout-watch.js';
 import { RolloutReader } from '../rollout-reader.js';
 import { readNativeThreadNames, withNativeThreadNames } from '../native-thread-names.js';
 import { RolloutActivityNormalizer } from './rollout-activity.js';
@@ -27,6 +28,7 @@ export async function createWindowsActivityAdapter(options: { files: string[]; r
   const nameIndex = options.nameIndex === undefined ? resolve(process.env.CODEX_HOME ?? resolve(homedir(), '.codex'), 'session_index.jsonl') : options.nameIndex;
   const base = await createMetadataAdapter({ allowedCwds: options.cwds, pollMs: options.pollMs, now: options.now,
     onPollComplete: () => pollComplete(),
+    subscribeWake: wake => watchRollouts({ root: options.root, files: options.files }, wake),
     sourceDescription: 'Existing Codex session logs; completed command activity is observed without command details.',
     connect: async () => {
       const reader = new RolloutReader(options.files, options.root ? () => discoverRollouts(options.root!) : undefined, (threadId, cwd, batch) => {

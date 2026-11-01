@@ -169,3 +169,47 @@ test('synthetic: scoped active goals update tasks; unsupported goals stay unknow
     assert.equal(latest.agents[0].task, null);
   } finally { adapter.stop(); }
 });
+
+
+test('synthetic: scoped status wake reconciles metadata without replay or parallel polls', async () => {
+  const reader = new Reader();
+  let listener: ((id: string) => void) | undefined;
+  let unsubscribed = 0;
+  const withStatus: MetadataReader = {
+    get connected() { return reader.connected; },
+    call: reader.call.bind(reader), close: reader.close.bind(reader),
+    subscribeStatus(callback) { listener = callback; return () => { listener = undefined; unsubscribed++; }; },
+  };
+  const adapter = await createMetadataAdapter({ allowedCwds: ['/synthetic/project'], pollMs: 10000, connect: async () => withStatus });
+  const events: OfficeEvent[] = [];
+  adapter.subscribe(event => events.push(event));
+  try {
+    const baselineCalls = reader.calls.length;
+    listener!('other-thread');
+    await sleep(90);
+    assert.equal(reader.calls.length, baselineCalls);
+    reader.rows = [row('synthetic-a', 'idle')];
+    for (let i = 0; i < 30; i++) listener!('synthetic-a');
+    await until(() => events.some(event => event.type === 'agent.upserted' && event.data.agent.runtimeState === 'idle'));
+    assert.equal(reader.calls.length - baselineCalls, 3);
+    assert.ok(events.every(event => event.type !== 'agent.work.completed'));
+    assert.equal((await adapter.initialSnapshot()).lastSeq, events.at(-1)?.seq);
+  } finally { adapter.stop(); }
+  assert.equal(unsubscribed, 1);
+  assert.equal(listener, undefined);
+});
+
+
+test('synthetic: filesystem wake discovers new scoped rows and closes its subscription', async () => {
+  const reader = new Reader(); let wake: (() => void) | undefined; let closed = 0;
+  const adapter = await createMetadataAdapter({ allowedCwds: ['/synthetic/project'], pollMs: 10000, connect: async () => reader,
+    subscribeWake(callback) { wake = callback; return () => { wake = undefined; closed++; }; } });
+  const events: OfficeEvent[] = []; adapter.subscribe(event => events.push(event));
+  try {
+    reader.rows.push(row('synthetic-b'));
+    for (let i = 0; i < 20; i++) wake!();
+    await until(() => events.some(event => event.type === 'agent.upserted' && event.agentId === 'synthetic-b'));
+    assert.equal(reader.calls.filter(method => method === 'thread/loaded/list').length, 2);
+  } finally { adapter.stop(); }
+  assert.equal(closed, 1); assert.equal(wake, undefined);
+});

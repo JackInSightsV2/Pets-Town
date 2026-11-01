@@ -1,7 +1,8 @@
 import { App, applyDocumentTheme, applyHostStyleVariables } from '@modelcontextprotocol/ext-apps';
 import type { McpUiDisplayMode, McpUiHostContext } from '@modelcontextprotocol/ext-apps';
 import { createHandoffStore } from '../../client/handoffs';
-import { isOfficeSnapshot } from '../../client/validation';
+import { createLifecycleStore } from '../../client/lifecycle';
+import { isOfficeSnapshot, isOfficeEvent } from '../../client/validation';
 import { OFFICE_TOOLS, type OfficeView } from '../types';
 
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
@@ -26,10 +27,12 @@ export interface EmbeddedState {
 }
 const clip = (value: string | null | undefined, max = 800) => value?.slice(0, max) ?? null;
 
-export function createEmbeddedController(app = new App({ name: 'PetsTown', version: '0.1.0' }, {
+export function createEmbeddedController(app = new App({ name: 'PetsTown', version: '0.1.4' }, {
   availableDisplayModes: ['inline', 'fullscreen', 'pip'],
 })) {
-  const store = createHandoffStore();
+  const lifecycle = createLifecycleStore();
+  const store = createHandoffStore({ store: lifecycle, getEligibleAgentIds: () => lifecycle.getLifecycleState().sprites
+    .filter(sprite => !sprite.attention && (sprite.phase === 'unknown' || sprite.meetingEligible)).map(sprite => sprite.agentId) });
   let state: EmbeddedState = { ready: false, message: 'Connecting to ChatGPT…', contextMessage: null,
     mode: 'inline', modes: ['inline'], canAsk: false, refreshing: false };
   const listeners = new Set<() => void>();
@@ -91,13 +94,29 @@ export function createEmbeddedController(app = new App({ name: 'PetsTown', versi
   const unsubscribe = store.subscribe(() => { void sendContext(); });
   function schedule() {
     clearTimeout(timer);
-    if (!stopped && state.ready && view && !document.hidden) timer = setTimeout(() => { void refresh(); }, 3000);
+    if (!stopped && state.ready && view && !document.hidden) timer = setTimeout(() => { void refresh(); }, 1000);
   }
   function apply(result: unknown, initial: boolean): boolean {
     const next = readOfficeView(result);
     if (!next || (!initial && next.scopeId !== view?.scopeId)) {
       store.setTransportStatus('disconnected', 'The office response is unavailable or no longer matches this view.');
       publish({ message: 'Could not refresh this office. Ask ChatGPT to show your team again.' });
+      return false;
+    }
+    const refresh = record(result) && record(result._meta) && record(result._meta.office) ? result._meta.office.refresh : null;
+    const current = store.getState().snapshot;
+    // A discontinuity recovers via a new authoritative baseline on the next call.
+    // Validate the entire batch before advancing any state or lifecycle animation.
+    const eventMode = !initial && record(refresh) && refresh.mode === 'events';
+    const events = eventMode ? refresh.events : null;
+    if (eventMode && (!current || !Array.isArray(events) || !events.every(isOfficeEvent)
+      || next.snapshot.bridgeEpoch !== current.bridgeEpoch || next.snapshot.source !== current.source
+      || next.snapshot.officeSessionId !== current.officeSessionId
+      || events.some((event, index) => event.bridgeEpoch !== current.bridgeEpoch || event.seq !== current.lastSeq + index + 1
+        || (event.source !== current.source && event.source !== 'office'))
+      || next.snapshot.lastSeq !== current.lastSeq + events.length)) {
+      store.setTransportStatus('reconnecting', 'Live event continuity changed. Requesting a fresh office snapshot.');
+      publish({ message: 'Refreshing the office after a connection change…' });
       return false;
     }
     applying = true;
@@ -107,7 +126,10 @@ export function createEmbeddedController(app = new App({ name: 'PetsTown', versi
       if (initial) generation++;
       if (changedScope) store.selectAgent(null);
       view = next;
-      store.applySnapshot(next.snapshot);
+      if (Array.isArray(events) && store.getState().transport.status === 'connected'
+        && current?.connection.status === 'connected') {
+        for (const event of events) store.applyEvent(event);
+      } else store.applySnapshot(next.snapshot);
       if (store.getState().error) {
         store.setTransportStatus('disconnected', 'The office snapshot is invalid.');
         publish({ message: 'The office returned an invalid snapshot.' });
@@ -131,8 +153,10 @@ export function createEmbeddedController(app = new App({ name: 'PetsTown', versi
     const scopeId = view.scopeId;
     publish({ refreshing: true });
     try {
+      const snapshot = store.getState().snapshot;
       const result = await app.callServerTool({ name: OFFICE_TOOLS.refresh, arguments: {
         scopeId, ...(view.projectId ? { projectId: view.projectId } : {}),
+        ...(snapshot && store.getState().transport.status === 'connected' ? { cursor: { bridgeEpoch: snapshot.bridgeEpoch, lastSeq: snapshot.lastSeq, source: snapshot.source } } : {}),
       } }, { timeout: 8000 });
       if (!stopped && generation === atStart && scopeId === view?.scopeId) apply(result, false);
     } catch {
@@ -212,7 +236,7 @@ export function createEmbeddedController(app = new App({ name: 'PetsTown', versi
   }
   // Leave transport open until the host receives its teardown acknowledgement.
   app.onteardown = () => { stop(false); return {}; };
-  return { store, connect, stop, refresh, requestMode, askAboutSelected,
+  return { store, lifecycle, connect, stop, refresh, requestMode, askAboutSelected,
     getState: () => state,
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
   };

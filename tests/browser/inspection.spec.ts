@@ -68,6 +68,9 @@ test('a synthetic local-source snapshot links only the selected existing chat', 
     const snapshot = await response.json() as OfficeSnapshot;
     // Synthetic source-mode switch verifies navigation identity, not live acceptance.
     snapshot.source = 'codex';
+    // Prior browser cases can seed fixture turn evidence; that evidence must not
+    // be relabelled as Codex merely to exercise the navigation link.
+    delete snapshot.latestTurns;
     await route.fulfill({ response, json: snapshot });
   });
   await page.goto('/');

@@ -13,6 +13,8 @@ export interface MetadataReader {
   readonly healthMessage?: string;
   call(method: 'thread/loaded/list' | 'thread/read' | 'thread/goal/get', params: Record<string, unknown>): Promise<unknown>;
   close(): void;
+  /** Optional status broadcast wake-up on the same initialized daemon connection. */
+  subscribeStatus?(listener: (threadId: string) => void): () => void;
 }
 export interface MetadataAdapterOptions {
   allowedCwds: readonly string[];
@@ -22,6 +24,8 @@ export interface MetadataAdapterOptions {
   now?: () => string;
   /** Called after scoped rows and connection state are applied for a successful poll. */
   onPollComplete?: () => void;
+  /** Optional best-effort change signal; reads remain the authoritative source. */
+  subscribeWake?: (wake: () => void) => () => void;
 }
 type JsonObject = Record<string, unknown>;
 const object = (v: unknown): v is JsonObject => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -42,6 +46,20 @@ export async function createMetadataAdapter(options: MetadataAdapterOptions): Pr
   let rpc: MetadataReader | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
+  let polling = false, wakePending = false, wakeScheduled = false;
+  let unsubscribeStatus: (() => void) | undefined;
+  function scheduleWake() {
+    if (stopped) return;
+    if (polling) { wakePending = true; return; }
+    if (wakeScheduled) return;
+    wakeScheduled = true;
+    clearTimeout(timer);
+    timer = setTimeout(() => { wakeScheduled = false; void poll(); }, 50);
+  }
+  function wake(threadId: string) {
+    if (state.agents.some(agent => agent.agentId === threadId)) scheduleWake();
+  }
+  let unsubscribeWake: (() => void) | undefined;
   let goalMethodSupported = true;
   function emit(type: 'agent.upserted' | 'project.upserted' | 'connection.changed', agentId: string | null, data: unknown) {
     if (stopped) return;
@@ -76,15 +94,18 @@ export async function createMetadataAdapter(options: MetadataAdapterOptions): Pr
     emit('project.upserted', null, { project });
   }
   async function poll() {
-    if (stopped) return;
+    if (stopped || polling) return;
+    polling = true;
     try {
       if (!rpc?.connected) {
+        unsubscribeStatus?.(); unsubscribeStatus = undefined;
         rpc?.close();
         connection({ status: 'reconnecting', lastObservedAt: state.connection.lastObservedAt, message: 'Connecting to the existing Codex metadata source.' });
         if (stopped) return;
         const connected = await options.connect();
         if (stopped) { connected.close(); return; }
         rpc = connected;
+        unsubscribeStatus = connected.subscribeStatus?.(wake);
         goalMethodSupported = true;
       }
       const ids = new Set<string>(), cursors = new Set<string>();
@@ -147,18 +168,26 @@ export async function createMetadataAdapter(options: MetadataAdapterOptions): Pr
       options.onPollComplete?.();
     } catch {
       if (stopped) return;
+      unsubscribeStatus?.(); unsubscribeStatus = undefined;
       rpc?.close(); rpc = null;
       connection({ status: 'disconnected', lastObservedAt: state.connection.lastObservedAt,
         message: 'Could not read the existing Codex metadata source. Existing agent state has been preserved.' });
     } finally {
-      if (!stopped) timer = setTimeout(() => { void poll(); }, pollMs);
+      polling = false;
+      if (!stopped) {
+        const delay = wakePending ? 50 : pollMs;
+        wakeScheduled = wakePending;
+        wakePending = false;
+        timer = setTimeout(() => { wakeScheduled = false; void poll(); }, delay);
+      }
     }
   }
   await poll();
+  try { unsubscribeWake = options.subscribeWake?.(scheduleWake); } catch { /* Polling remains available. */ }
   return {
     initialSnapshot() { return structuredClone(state); },
     subscribe(listener) { if (!stopped) listeners.add(listener); return () => { listeners.delete(listener); }; },
-    stop() { stopped = true; clearTimeout(timer); listeners.clear(); rpc?.close(); rpc = null; },
+    stop() { stopped = true; clearTimeout(timer); listeners.clear(); unsubscribeWake?.(); unsubscribeStatus?.(); unsubscribeStatus = undefined; rpc?.close(); rpc = null; },
   };
 }
 

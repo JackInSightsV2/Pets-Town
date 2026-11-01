@@ -8,7 +8,7 @@ import { builtInPets } from '../shared/pets.js';
 import { createOfficeServer } from './server.js';
 import { createFixtureAdapter } from './fixture.js';
 import type { OfficeAdapter } from './adapter.js';
-import { createAdapter as createCodexMetadataAdapter } from '../codex/metadata-adapter.js';
+import { createAdapter as createPlatformAdapter } from '../codex/platform-adapter.js';
 
 export function readOptions(args=process.argv.slice(2)) {
   const value=(name:string)=>{const i=args.indexOf(name);if(i<0)return undefined;if(!args[i+1]||args[i+1].startsWith('--'))throw new Error(`${name} requires a value`);return args[i+1];};
@@ -25,11 +25,11 @@ export function defaultObserverIdentity(): string {
   const canonical=paths.map(canonicalizeCwd);
   if(canonical.some(path=>path===null))throw new Error('Observer directories must be absolute.');
   const socket=resolve(process.env.PETSTOWN_METADATA_SOCKET??resolve(process.env.CODEX_HOME??resolve(homedir(),'.codex'),'app-server-control/app-server-control.sock'));
-  return createHash('sha256').update(JSON.stringify({kind:'metadata-v1',platform:process.platform,cwds:[...new Set(canonical)].sort(),socket})).digest('hex');
+  return createHash('sha256').update(JSON.stringify({kind:'lifecycle-v2',platform:process.platform,cwds:[...new Set(canonical)].sort(),socket,rolloutRoot:process.env.PETSTOWN_ROLLOUT_ROOT??null,rolloutFiles:process.env.PETSTOWN_ROLLOUT_FILES??null})).digest('hex');
 }
 export async function loadAdapter(options: ReturnType<typeof readOptions>): Promise<OfficeAdapter> {
   if(options.fixture)return createFixtureAdapter();
-  if(!options.adapterModule)return createCodexMetadataAdapter();
+  if(!options.adapterModule)return createPlatformAdapter();
   const specifier=options.adapterModule.startsWith('.')||options.adapterModule.startsWith('/')?pathToFileURL(resolve(options.adapterModule)).href:options.adapterModule;
   const module=await import(specifier);
   const candidate=module.createAdapter??module.default;

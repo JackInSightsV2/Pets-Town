@@ -24,7 +24,7 @@ export interface MeetingQueueState {
   maxQueued: number;
 }
 export interface MeetingQueue {
-  setAgents(agents: readonly OfficeAgent[], visibleAgentIds: readonly string[]): void;
+  setAgents(agents: readonly OfficeAgent[], visibleAgentIds: readonly string[], eligibleAgentIds?: readonly string[]): void;
   setPresentation(state: PresentationState): void;
   observe(handoff: OfficeHandoff): MeetingAdmission;
   seedHistory(handoffs: readonly OfficeHandoff[]): void;
@@ -56,6 +56,7 @@ export function createMeetingQueue(options: { maxQueued?: number } = {}): Meetin
   if (!Number.isInteger(maxQueued) || maxQueued < 0) throw new RangeError('maxQueued must be a non-negative integer');
   let agents = new Map<string, OfficeAgent>();
   let visible = new Set<string>();
+  let eligible: Set<string> | null = null;
   let presentation: PresentationState = 'ready';
   let generation = 0;
   let serial = 0;
@@ -69,7 +70,7 @@ export function createMeetingQueue(options: { maxQueued?: number } = {}): Meetin
   function unavailable(handoff: OfficeHandoff): boolean {
     return participants(handoff).some(id => {
       const agent = agents.get(id);
-      return !agent || agent.runtimeState === 'closed' || agent.runtimeState === 'error';
+      return !agent || agent.runtimeState === 'closed' || agent.runtimeState === 'error' || (eligible !== null && !eligible.has(id));
     });
   }
   function hiddenIds(handoff: OfficeHandoff): string[] {
@@ -133,9 +134,10 @@ export function createMeetingQueue(options: { maxQueued?: number } = {}): Meetin
     return { status: 'dropped', reason };
   }
   return {
-    setAgents(nextAgents, visibleAgentIds) {
+    setAgents(nextAgents, visibleAgentIds, eligibleAgentIds) {
       agents = new Map(nextAgents.map(agent => [agent.agentId, copy(agent)]));
       visible = new Set(visibleAgentIds);
+      eligible = eligibleAgentIds ? new Set(eligibleAgentIds) : null;
       reconcile();
     },
     setPresentation(state) {

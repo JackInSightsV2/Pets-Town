@@ -1,4 +1,5 @@
 import type { OfficeEvent, OfficeSnapshot } from '../shared/contract';
+import { isTurnLifecycleObservation } from '../shared/turn-lifecycle.js';
 
 type RecordValue = Record<string, unknown>;
 const record = (v: unknown): v is RecordValue => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -47,6 +48,10 @@ export function isOfficeSnapshot(v: unknown): v is OfficeSnapshot {
     || !array(v.agents, agent) || !array(v.projects, project) || !array(v.pendingRequests, request)
     || !array(v.recentHandoffs, handoff) || !array(v.petAssets, pet)
     || (v.controlToken !== undefined && !id(v.controlToken))) return false;
+  const agentIds = new Set((v.agents as RecordValue[]).map(agent => agent.agentId));
+  if (v.latestTurns !== undefined && (!array(v.latestTurns, observation => isTurnLifecycleObservation(observation)
+    && agentIds.has(observation.agentId) && observation.source === v.source)
+    || !unique(v.latestTurns as unknown[], 'agentId'))) return false;
   return [['agents', 'agentId'], ['projects', 'projectId'], ['pendingRequests', 'requestId'],
     ['recentHandoffs', 'handoffId'], ['petAssets', 'assetId']].every(([field, key]) => unique(v[field] as unknown[], key));
 }
@@ -61,6 +66,8 @@ export function isOfficeEvent(v: unknown): v is OfficeEvent {
     case 'agent.activity': return activity(d.activity) && (d.activity as RecordValue).agentId === v.agentId;
     case 'agent.state.changed': return id(v.agentId) && runtime(d.runtimeState);
     case 'agent.work.completed': return id(v.agentId) && id(d.sourceItemId);
+    case 'agent.turn.observed': return isTurnLifecycleObservation(d.observation)
+      && d.observation.agentId === v.agentId && d.observation.source === v.source;
     case 'agent.closed': return id(v.agentId) && textOrNull(d.reason);
     case 'request.opened': return request(d.request) && (d.request as RecordValue).agentId === v.agentId;
     case 'request.resolved': return id(d.requestId) && textOrNull(d.reason);

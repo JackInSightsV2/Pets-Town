@@ -37,8 +37,18 @@ export function connectOffice(store: OfficeStore, options: { baseUrl?: string } 
       try {
         const event: unknown = JSON.parse(message.data);
         if (!isOfficeEvent(event)) throw new Error('Invalid office event received.');
+        const previous = store.getState().snapshot;
         store.applyEvent(event);
-        if (store.getState().error === RESYNC_REQUIRED) restart(RESYNC_REQUIRED);
+        const state = store.getState();
+        const next = state.snapshot;
+        if (state.error === RESYNC_REQUIRED) restart(RESYNC_REQUIRED);
+        else if (!state.error && event.type === 'connection.changed' && previous && next !== previous
+          && next?.lastSeq === event.seq && previous.connection.status !== 'connected' && next.connection.status === 'connected') {
+          // The source can recover while this SSE connection stays open. Its
+          // connected flag is not a lifecycle baseline: stop this delivery
+          // generation and obtain authoritative state before accepting more work.
+          restart('The source reconnected. Refreshing the current office state.');
+        }
       } catch (error) { restart(errorMessage(error)); }
     };
     current.addEventListener('office', onEvent as EventListener);

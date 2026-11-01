@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import { officeGeometry } from '../../office/environment';
 import { createRoot } from 'react-dom/client';
+import { OfficeBehaviorProvider } from '../../ui/useOfficeBehavior';
 import { OfficeScene } from '../../ui/OfficeScene';
 import { NativePet } from '../../ui/NativePet';
 import { nativeAssetFor, stateLabels, attentionFor, timeLabel } from '../../ui/view-model';
@@ -87,6 +88,6 @@ function EmbeddedOffice({ controller }: { controller: EmbeddedController }) {
 const root = document.getElementById('root');
 if (!root) throw new Error('PetsTown requires a root element.');
 const controller = createEmbeddedController();
-createRoot(root).render(<EmbeddedOffice controller={controller} />);
+createRoot(root).render(<OfficeBehaviorProvider value={{ lifecycle: controller.lifecycle, handoffs: controller.store }}><EmbeddedOffice controller={controller} /></OfficeBehaviorProvider>);
 void controller.connect();
 window.addEventListener('pagehide', () => controller.stop(), { once: true });
