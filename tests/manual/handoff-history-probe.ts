@@ -7,6 +7,7 @@ import { resolve } from 'node:path';
 const socketPath = process.env.PETSTOWN_METADATA_SOCKET ?? resolve(process.env.CODEX_HOME ?? resolve(homedir(), '.codex'), 'app-server-control/app-server-control.sock');
 if (process.platform === 'win32' || !socketPath.startsWith('/') || socketPath.includes(':')) throw new Error('An existing Unix daemon socket is required.');
 const ws = new WebSocket(`ws+unix://${socketPath}:/`, { handshakeTimeout: 5000, maxPayload: 20 * 1024 * 1024 });
+const deadline = setTimeout(() => ws.terminate(), 70_000);
 const secret = randomBytes(32);
 const pseudonym = (value: string) => createHmac('sha256', secret).update(value).digest('hex').slice(0, 12);
 const seen = new Set<string>();
@@ -70,4 +71,4 @@ try {
   while (Date.now() < end) { await new Promise(done => setTimeout(done, 3000)); await scan(false); }
   console.log(JSON.stringify({ result: 'finished', note: 'Counts and pseudonyms are diagnostic only; a new interaction is not yet an Office meeting.' }));
 } catch { console.error('Probe failed or timed out; no source capability established.'); process.exitCode = 1; }
-finally { ws.terminate(); }
+finally { clearTimeout(deadline); ws.terminate(); }
