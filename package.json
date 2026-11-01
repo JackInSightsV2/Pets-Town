@@ -1,6 +1,6 @@
 {
   "name": "petstown",
-  "version": "0.1.0",
+  "version": "0.1.4",
   "private": true,
   "type": "module",
   "description": "A local office for existing Codex agents",
@@ -12,7 +12,7 @@
     "pets:fetch": "tsx scripts/fetch-pets.ts",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/**/*.test.ts src/office/three/*.test.ts",
+    "test": "tsx scripts/test.ts",
     "test:e2e": "playwright test",
     "build:chatgpt": "tsx scripts/build-chatgpt.ts",
     "package:chatgpt": "tsx scripts/package-chatgpt.ts",

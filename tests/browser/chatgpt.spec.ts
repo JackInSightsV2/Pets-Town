@@ -9,6 +9,7 @@ function fixture(): OfficeView {
   const data = snapshot();
   delete data.controlToken;
   data.petAssets = structuredClone(builtInPets);
+  data.presentation = { state: 'live', canSkip: false };
   data.agents = [
     { ...agent('maple'), displayName: 'Maple', task: 'Inspect the landing page', petAssetId: 'codex' },
     { ...agent('willow'), displayName: 'Willow', task: 'Review the navigation', petAssetId: 'dewey' },
@@ -204,4 +205,26 @@ test('embedded office uses main geometry, role sizes and a stationary viewport',
   await frame.getByRole('button', { name: 'Expand', exact: true }).click();
   await expect.poll(() => viewport.evaluate(e => [e.scrollLeft, e.scrollTop])).toEqual([0, 0]);
   await frame.getByTestId('embedded-office').screenshot({ path: '/tmp/petstown-fixed-camera.png' });
+});
+
+test('ordered refresh updates live state without replacing the embedded layout or selection', async ({ page }) => {
+  const frame = await mount(page);
+  await frame.getByTestId('embedded-agent-maple').click();
+  await page.evaluate(() => {
+    const host = window as unknown as { hostResult: { _meta: { office: OfficeView } } };
+    const view = host.hostResult._meta.office;
+    const updated = { ...view.snapshot.agents[0], task: 'Delivered by the ordered event stream' };
+    view.snapshot.lastSeq = 1;
+    view.refresh = { mode: 'events', events: [{ protocolVersion: 1, bridgeEpoch: view.snapshot.bridgeEpoch,
+      seq: 1, eventId: 'update-maple', occurredAt: '2026-11-01T13:00:01Z', source: view.snapshot.source,
+      agentId: 'maple', type: 'agent.upserted', data: { agent: updated } }] };
+  });
+  await frame.getByRole('button', { name: 'Refresh office' }).click();
+  await expect(frame.getByTestId('embedded-details')).toContainText('Delivered by the ordered event stream');
+  await expect(frame.getByTestId('embedded-agent-maple')).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(() => page.evaluate(() => {
+    const calls = (window as unknown as { calls: { arguments: { cursor?: { lastSeq: number } } }[] }).calls;
+    return calls.at(-1)?.arguments.cursor?.lastSeq;
+  })).toBe(0);
+  await expect.poll(() => frame.getByTestId('office-map-viewport').evaluate(e => [e.scrollLeft, e.scrollTop])).toEqual([0, 0]);
 });

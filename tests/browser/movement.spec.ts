@@ -80,9 +80,12 @@ test('pet sizes, chair destinations and decorative nearby idle chatter follow ob
   await page.screenshot({path:'test-results/idle-seating-chatter.png',fullPage:true});
   await emit(request,'agent.state.changed','willow',{runtimeState:'working'});
   await expect(page.getByTestId('ambient-chatter')).toHaveCount(0);
-  await expect(child).toHaveAttribute('data-location','home');
+  // Working children follow a resting parent under the shared family behavior.
+  await expect(child).toHaveAttribute('data-location','family');
   await emit(request,'agent.state.changed','maple',{runtimeState:'working'});
   await expect(parent).toHaveAttribute('data-location','home');
+  await expect(child).toHaveAttribute('data-location','home');
+  await expect(child).toHaveCSS('left','286px');
   await expect(parent).toHaveCSS('left','218px');
   await expect(parent).toHaveCSS('top','119px');
   await page.screenshot({path:'test-results/desk-seating.png',fullPage:true});

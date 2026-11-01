@@ -1,6 +1,6 @@
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { readFile } from 'node:fs/promises';
-import { createAdapter } from '../codex/metadata-adapter.js';
+import { createAdapter } from '../codex/platform-adapter.js';
 import { createOfficeServer } from '../server/server.js';
 import { createChatgptServer } from './server.js';
 import { readScope } from './snapshot.js';

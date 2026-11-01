@@ -31,7 +31,7 @@ export function officeView(input: OfficeSnapshot, allowedCwds: readonly string[]
   const reply = unsupported(REPLY_LIMIT);
   // Model and widget calls may use different MCP processes. Scope identifies
   // the configured directories, not an observer process's random bridge epoch.
-  const scopeId = createHash('sha256').update(JSON.stringify([...allowed].sort())).digest('hex');
+  const scopeId = createHash('sha256').update(JSON.stringify({ cwds: [...allowed].sort(), projectId: filter.projectId ?? null })).digest('hex');
   const snapshot: OfficeSnapshot = {
     protocolVersion: 1, bridgeEpoch: input.bridgeEpoch, lastSeq: input.lastSeq,
     officeSessionId: input.officeSessionId, source: input.source,
@@ -62,6 +62,7 @@ export function officeView(input: OfficeSnapshot, allowedCwds: readonly string[]
     recentHandoffs: input.recentHandoffs.filter(h => ids.has(h.fromAgentId) && ids.has(h.toAgentId)).slice(0, 20)
       .map(h => ({ handoffId: h.handoffId, fromAgentId: h.fromAgentId, toAgentId: h.toAgentId,
         summary: clip(h.summary, 600)!, occurredAt: h.occurredAt, sourceItemId: h.sourceItemId })),
+    latestTurns: (input.latestTurns ?? []).filter(turn => ids.has(turn.agentId)),
     petAssets: structuredClone(builtInPets),
   };
   return { snapshot, scopeId, selectedAgentId: filter.agentId ?? null, projectId: filter.projectId ?? null };

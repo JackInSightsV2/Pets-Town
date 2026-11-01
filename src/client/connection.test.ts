@@ -2,7 +2,9 @@ import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { connectOffice, presentationAction } from './connection';
 import { createOfficeStore } from './store';
-import { event, snapshot } from './test-helpers';
+import { createLifecycleStore } from './lifecycle';
+import type { TurnLifecycleObservation } from '../shared/turn-lifecycle';
+import { event, snapshot, time } from './test-helpers';
 
 class FakeEventSource {
   static instances: FakeEventSource[] = [];
@@ -80,6 +82,62 @@ test('sequence gaps resnapshot; queued events from the replaced stream are ignor
   await settle();
   assert.match(FakeEventSource.instances[1].url, /epoch-a%3A2$/);
   assert.equal(store.getState().error, null);
+});
+
+test('source recovery over the same stream resnapshots before lifecycle resumes and ignores old callbacks', async t => {
+  const repair = deferred<Response>();
+  const started: TurnLifecycleObservation = { agentId: 'main', turnId: `turn-v1-${'1'.padStart(64, '0')}`,
+    sourceEventId: `turn-event-v1-${'11'.padStart(64, '0')}`, status: 'started', source: 'fixture', delivery: 'history',
+    occurredAt: time, startedAt: 1 };
+  const initial = { ...snapshot(), presentation: { state: 'live' as const, canSkip: false }, latestTurns: [started] };
+  let fetches = 0;
+  mockTransport(t, async () => ++fetches === 1 ? response(initial) : repair.promise);
+  const store = createLifecycleStore();
+  const connection = connectOffice(store);
+  t.after(connection.stop);
+  await settle();
+  const oldSource = FakeEventSource.instances[0];
+  oldSource.onopen?.();
+  oldSource.emit(event(1, 'connection.changed', { connection: { status: 'disconnected', lastObservedAt: time, message: null } }));
+  assert.equal(fetches, 1, 'source loss alone does not pretend that recovery is available');
+  assert.equal(store.getLifecycleState().sprites[0].meetingEligible, false);
+  oldSource.emit(event(2, 'connection.changed', { connection: { status: 'connected', lastObservedAt: time, message: null } }));
+  assert.equal(fetches, 2);
+  assert.equal(oldSource.closed, true);
+  assert.equal(store.getState().transport.status, 'reconnecting');
+  assert.equal(store.getLifecycleState().snapshotRevision, 1, 'recovery waits for a real baseline');
+  assert.equal(store.getLifecycleState().sprites[0].meetingEligible, false);
+  const failed = event(3, 'agent.turn.observed', { observation: { ...started, status: 'failed', delivery: 'live',
+    sourceEventId: `turn-event-v1-${'13'.padStart(64, '0')}` } });
+  oldSource.emit(failed);
+  oldSource.onopen?.();
+  oldSource.onerror?.();
+  assert.equal(store.getState().snapshot!.lastSeq, 2);
+  assert.equal(store.getState().transport.status, 'reconnecting');
+  assert.equal(store.getLifecycleState().sprites[0].status, 'started');
+  assert.equal(fetches, 2);
+  repair.resolve(response({ ...initial, lastSeq: 2 }));
+  await settle();
+  const current = FakeEventSource.instances[1];
+  assert.match(current.url, /epoch-a%3A2$/);
+  current.onopen?.();
+  assert.equal(store.getLifecycleState().snapshotRevision, 2);
+  assert.equal(store.getLifecycleState().sprites[0].meetingEligible, true);
+  assert.equal(store.getState().snapshot!.capabilities.observeHandoffs.supported, false, 'recovery does not invent handoff support');
+  current.emit(failed);
+  assert.equal(store.getLifecycleState().sprites[0].phase, 'dying', 'new generation delivers after its authoritative baseline');
+  const connected = event(4, 'connection.changed', { connection: { status: 'connected', lastObservedAt: time, message: null } });
+  current.emit(connected);
+  current.emit(connected);
+  assert.equal(fetches, 2, 'ordinary connected updates and their replay do not resnapshot');
+  assert.equal(current.closed, false);
+  oldSource.emit(event(5, 'agent.closed', { reason: null }));
+  oldSource.onopen?.();
+  oldSource.onerror?.();
+  assert.equal(store.getState().snapshot!.lastSeq, 4);
+  assert.equal(store.getState().snapshot!.agents[0].runtimeState, 'working');
+  assert.equal(store.getState().transport.status, 'connected');
+  assert.equal(FakeEventSource.instances.length, 2);
 });
 
 test('stop cancels pending fetch and stale callbacks never reconnect or update', async t => {

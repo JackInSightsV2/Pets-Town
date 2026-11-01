@@ -18,6 +18,7 @@ async function live(page: Page, request: APIRequestContext) {
 test.beforeEach(async ({ request }) => {
   const snapshot = await (await request.get('/api/office')).json() as OfficeSnapshot;
   for (const id of ['maple', 'willow']) await emit(request, 'agent.state.changed', id, { runtimeState: 'working' });
+  await emit(request, 'request.resolved', 'willow', { requestId: 'missing-details', reason: 'Handoff fixture starts without unresolved attention' });
   await emit(request, 'connection.changed', null, { connection: { status: 'connected', lastObservedAt: new Date().toISOString(), message: 'Explicit handoff browser fixture' } });
   await request.post('/api/presentation/reset', { headers: { 'X-Office-Token': snapshot.controlToken! } });
 });
@@ -56,6 +57,23 @@ test('fresh SSE handoff moves the pair, shows its summary, returns home and igno
   await page.reload();
   await expect(page.getByTestId('scene-agent-maple')).toBeVisible();
   await expect(page.getByTestId('office-scene')).toHaveAttribute('data-meeting', '');
+  await expect(page.getByTestId('handoff-summary')).toHaveCount(0);
+});
+
+test('source disconnect cancels a meeting and reconnect does not replay it', async ({ page, request }) => {
+  await page.goto('/?view=2d');
+  await live(page, request);
+  const scene = page.getByTestId('office-scene');
+  const first = handoff('Fixture exchange interrupted by source disconnect');
+  await emit(request, 'handoff.observed', 'maple', { handoff: first });
+  await expect(scene).toHaveAttribute('data-meeting', first.handoffId);
+  await emit(request, 'connection.changed', null, { connection: { status: 'disconnected', lastObservedAt: new Date().toISOString(), message: 'Fixture source disconnected' } });
+  await expect(scene).toHaveAttribute('data-meeting', '');
+  await expect(page.getByTestId('handoff-summary')).toHaveCount(0);
+  await expect(page.getByTestId('scene-agent-maple')).toHaveAttribute('data-runtime-state', 'working');
+  await emit(request, 'connection.changed', null, { connection: { status: 'connected', lastObservedAt: new Date().toISOString(), message: 'Fixture source restored' } });
+  await page.reload();
+  await expect(scene).toHaveAttribute('data-meeting', '');
   await expect(page.getByTestId('handoff-summary')).toHaveCount(0);
 });
 

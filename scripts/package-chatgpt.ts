@@ -19,9 +19,12 @@ for (const file of ['server.mjs', 'office.html']) await copyFile(resolve(root, '
 // plugin.json shadows this declaration on Desktop 26.1027, yielding zero servers.
 await writeFile(resolve(target, '.mcp.json'), JSON.stringify({
   mcpServers: { petstown: {
-    command: process.execPath, args: ['./server.mjs'], cwd: '.',
+    command: 'node', args: ['./server.mjs'], cwd: '.',
+    env_vars: ['CODEX_HOME'],
     env: { PETSTOWN_METADATA_CWDS: JSON.stringify(scope),
-      ...(process.env.PETSTOWN_METADATA_SOCKET ? { PETSTOWN_METADATA_SOCKET: process.env.PETSTOWN_METADATA_SOCKET } : {}) },
+      ...(process.env.PETSTOWN_METADATA_SOCKET ? { PETSTOWN_METADATA_SOCKET: process.env.PETSTOWN_METADATA_SOCKET } : {}),
+      ...(process.env.PETSTOWN_ROLLOUT_ROOT ? { PETSTOWN_ROLLOUT_ROOT: process.env.PETSTOWN_ROLLOUT_ROOT } : {}),
+      ...(process.env.PETSTOWN_ROLLOUT_FILES ? { PETSTOWN_ROLLOUT_FILES: process.env.PETSTOWN_ROLLOUT_FILES } : {}) },
   } },
 }, null, 2) + '\n');
 console.log(`Packaged PetsTown for ${scope.length} explicit project(s). Install petstown@petstown-local from this repository.`);

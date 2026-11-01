@@ -86,3 +86,10 @@ test('scope identity is stable across processes but changes with allowed project
   assert.equal(officeView(snapshot(0, 'a'), ['/project']).scopeId, officeView(snapshot(0, 'b'), ['/project']).scopeId);
   assert.notEqual(officeView(snapshot(), ['/project']).scopeId, officeView(snapshot(), ['/other']).scopeId);
 });
+
+test('project filters use separate cursor scopes', () => {
+  const input = snapshot();
+  input.projects.push({ projectId: 'second', displayName: 'Second', cwd: '/project' });
+  assert.notEqual(officeView(input, ['/project'], { projectId: input.projects[0].projectId }).scopeId,
+    officeView(input, ['/project'], { projectId: 'second' }).scopeId);
+});

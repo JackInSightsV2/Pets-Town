@@ -10,11 +10,11 @@ export type HandoffDelivery = 'applied' | 'ignored' | 'snapshot-required' | 'una
  * Route snapshots/events through these methods; the supplied store still notifies its UI.
  * Snapshot handoffs seed deduplication and never start choreography.
  */
-export function createHandoffController(options: { store?: OfficeStore; maxQueued?: number } = {}) {
+export function createHandoffController(options: { store?: OfficeStore; maxQueued?: number; getEligibleAgentIds?: () => readonly string[] } = {}) {
   const store = options.store ?? createOfficeStore();
   const queue = createMeetingQueue({ maxQueued: options.maxQueued });
   let visibleAgentIds: string[] = [];
-  const refreshAgents = () => queue.setAgents(store.getState().snapshot?.agents ?? [], visibleAgentIds);
+  const refreshAgents = () => queue.setAgents(store.getState().snapshot?.agents ?? [], visibleAgentIds, options.getEligibleAgentIds?.());
 
   return {
     store,

@@ -1,3 +1,5 @@
+import type { TurnLifecycleObservation } from './turn-lifecycle.js';
+
 export type RuntimeState = 'working' | 'idle' | 'waiting-for-input' | 'waiting-for-approval' | 'error' | 'closed' | 'unknown';
 export type ActivityKind = 'reading' | 'editing' | 'running-command' | 'researching' | 'communicating' | 'unknown';
 export type EventSourceKind = 'codex' | 'office' | 'fixture';
@@ -73,6 +75,8 @@ export interface OfficeSnapshot {
   projects: OfficeProject[];
   pendingRequests: OfficeRequest[];
   recentHandoffs: OfficeHandoff[];
+  /** Verified latest turn per agent; omitted by observers without lifecycle evidence. */
+  latestTurns?: TurnLifecycleObservation[];
   petAssets: PetAsset[];
   controlToken?: string;
 }
@@ -93,6 +97,7 @@ export type OfficeEvent =
   | EventEnvelope<'agent.activity', { activity: ActivityEntry }>
   | EventEnvelope<'agent.state.changed', { runtimeState: RuntimeState }>
   | EventEnvelope<'agent.work.completed', { sourceItemId: string }>
+  | EventEnvelope<'agent.turn.observed', { observation: TurnLifecycleObservation }>
   | EventEnvelope<'agent.closed', { reason: string | null }>
   | EventEnvelope<'request.opened', { request: OfficeRequest }>
   | EventEnvelope<'request.resolved', { requestId: string; reason: string | null }>

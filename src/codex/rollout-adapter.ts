@@ -6,8 +6,8 @@ import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import { readNativeThreadNames, withNativeThreadNames } from './native-thread-names.js';
 
-export async function createAdapter() {
-  const root = process.env.PETSTOWN_ROLLOUT_ROOT;
+export async function createAdapter(options: { defaultRoot?: string } = {}) {
+  const root = process.env.PETSTOWN_ROLLOUT_ROOT ?? (process.env.PETSTOWN_ROLLOUT_FILES ? undefined : options.defaultRoot);
   const files: unknown = JSON.parse(process.env.PETSTOWN_ROLLOUT_FILES ?? (root ? '[]' : 'null'));
   const cwds: unknown = process.env.PETSTOWN_METADATA_CWDS ? JSON.parse(process.env.PETSTOWN_METADATA_CWDS) : [process.cwd()];
   if (!Array.isArray(files) || !files.every(path => typeof path === 'string')) throw new Error('PETSTOWN_ROLLOUT_FILES must be a JSON array of absolute existing session-log paths.');
