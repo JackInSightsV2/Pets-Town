@@ -141,7 +141,7 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
               const result = normalizer.observe({ source: 'codex', sourceNamespace: options.sourceNamespace, observedAt: occurredAt, delivery,
                 notification: { method: 'item/completed', params: { threadId, turnId: turn.id, item } } });
               if (result.kind === 'unavailable' && result.reason === 'capacity-exceeded') {
-                failHistorySource('Handoff history capacity reached; reopen Office to reset the observation ledger.');
+                failHistorySource('Handoff history capacity reached; handoffs unavailable for this history.');
                 return;
               }
               if (result.kind === 'observed') for (const handoff of result.handoffs) {
