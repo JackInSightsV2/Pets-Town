@@ -81,7 +81,8 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
   function fromBase(event: OfficeEvent) {
     if (stopped) return;
     if (!state) { queued.push(structuredClone(event)); return; }
-    if (event.bridgeEpoch !== baseEpoch || event.seq <= baseSeq) return;
+    if (event.bridgeEpoch === baseEpoch && event.seq <= baseSeq) return;
+    if (event.bridgeEpoch !== baseEpoch || event.seq !== baseSeq + 1) { failHistorySource(); return; }
     baseSeq = event.seq;
     if (sourceFailed && event.type === 'connection.changed') return;
     publish(event);
