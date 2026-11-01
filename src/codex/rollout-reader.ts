@@ -2,6 +2,7 @@ import { open } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
 import type { MetadataReader } from './metadata-adapter.js';
 import { MetadataRpcError } from './metadata-rpc.js';
+import { canonicalizeCwd } from './observer-normalization.js';
 
 const READ_CHUNK_BYTES = 64 * 1024;
 // Bound memory per record while accommodating large normal transcript records.
@@ -60,7 +61,9 @@ export class RolloutReader implements MetadataReader {
       if (paths.length > MAX_PATHS || paths.some(p => !isAbsolute(p) || p.includes('\0')) || new Set(paths).size !== paths.length)
         throw new Error('Invalid discovered rollout paths.');
       const known = new Set(this.files.map(file => file.path));
-      for (const path of paths) if (!known.has(path)) this.files.push({ path, offset: 0, prefix: Buffer.alloc(0), dev: 0, ino: 0,
+      const additions = paths.filter(path => !known.has(path));
+      if (this.files.length + additions.length > MAX_PATHS) throw new Error('Cumulative rollout discovery limit exceeded; restart the observer.');
+      for (const path of additions) this.files.push({ path, offset: 0, prefix: Buffer.alloc(0), dev: 0, ino: 0,
         historicalEnd: 0, lastSize: 0, initial: true, status: 'unknown' });
     }
     for (const file of this.files) {
@@ -68,14 +71,14 @@ export class RolloutReader implements MetadataReader {
       try { await this.readFile(file); } catch { this.quarantined.add(file); }
     }
     const identities = new Map<string, FileState[]>();
-    for (const file of this.files) if (!this.quarantined.has(file) && file.id && file.cwd) {
+    for (const file of this.files) if (file.id && file.cwd) {
       const group = identities.get(file.id) ?? [];
       group.push(file); identities.set(file.id, group);
     }
     const rows = new Map<string, FileState>();
     for (const [id, group] of identities) {
       if (group.length !== 1) { for (const file of group) this.quarantined.add(file); }
-      else rows.set(id, group[0]);
+      else if (!this.quarantined.has(group[0])) rows.set(id, group[0]);
     }
     this.rows = rows;
   }
@@ -138,7 +141,7 @@ export class RolloutReader implements MetadataReader {
     const payload = record.payload;
     if (record.type === 'session_meta') {
       const id = str(payload.id), cwd = str(payload.cwd);
-      if (!id || !cwd || (file.id && file.id !== id)) throw new Error('Invalid session metadata.');
+      if (!id || !cwd || (file.id && (file.id !== id || canonicalizeCwd(file.cwd) !== canonicalizeCwd(cwd) || file.parent !== str(payload.parent_thread_id)))) throw new Error('Invalid session metadata.');
       file.id = id; file.cwd = cwd; file.parent = str(payload.parent_thread_id); file.nickname = str(payload.agent_nickname);
     } else if (record.type === 'event_msg') {
       const turn = str(payload.turn_id);

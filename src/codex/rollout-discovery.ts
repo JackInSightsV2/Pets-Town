@@ -19,9 +19,9 @@ export async function discoverRollouts(root: string): Promise<string[]> {
     try {
       entries = await readdir(directory.path, { withFileTypes: true });
     } catch (error) {
-      // A missing root is an empty source; other traversal errors are not a
-      // successful partial snapshot. A directory may disappear during a scan.
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+      // Nested directories can disappear during a scan, but a missing root is
+      // an unavailable source rather than a healthy empty snapshot.
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT' && directory.depth > 0) continue;
       throw error;
     }
     for (const entry of entries) {
