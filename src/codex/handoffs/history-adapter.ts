@@ -13,7 +13,9 @@ export interface VerifiedHistoryReader {
 }
 export interface HistoryAdapterOptions {
   base: OfficeAdapter;
-  reader: VerifiedHistoryReader;
+  reader?: VerifiedHistoryReader;
+  /** Opens and revalidates an independent read-only source on each retry. */
+  connectReader?: () => Promise<VerifiedHistoryReader>;
   /** Stable across viewer reconnects, identifying the verified source runtime. */
   sourceNamespace: string;
   /** True only after this exact runtime/version and history projection have been verified. */
@@ -43,21 +45,28 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
   const baselined = new Set<string>();
   let state: OfficeSnapshot | undefined;
   let baseEpoch = '', baseSeq = 0;
-  let generation = options.reader.generation;
+  let reader = options.reader;
+  let generation = reader?.generation ?? '';
   let stopped = false, timer: ReturnType<typeof setTimeout> | undefined;
   let enabled = false, sourceFailed = false, baseFailed = false;
   let baseConnectionMessage: string | null = null;
-  function failHistorySource(reason = 'History reader failed; reopen Office to retry.') {
+  function failHistorySource(reason = 'History reader unavailable; retrying.', retryable = true) {
     if (!state || sourceFailed) return;
-    sourceFailed = true; enabled = false;
+    const wasEnabled = enabled;
+    enabled = false;
+    sourceFailed = !retryable || !options.connectReader;
+    baselined.clear();
+    const old = reader; reader = undefined; generation = '';
+    if (old) void Promise.resolve(old.close()).catch(() => {});
     state.capabilities.observeHandoffs = unsupported(reason);
-    // History support and metadata health are independent; notify connected viewers.
-    publish({ protocolVersion: 1, bridgeEpoch: wrapEpoch, seq: 0, eventId: randomUUID(),
-      occurredAt: now(), source: 'codex', type: 'capabilities.changed', agentId: null,
-      data: { capabilities: structuredClone(state.capabilities) } });
-    if (!baseFailed && state.connection.status === 'connected') publish({ protocolVersion: 1, bridgeEpoch: wrapEpoch, seq: 0, eventId: randomUUID(),
-      occurredAt: now(), source: 'codex', type: 'connection.changed', agentId: null,
-      data: { connection: { ...state.connection, message: baseConnectionMessage } } });
+    if (wasEnabled) {
+      publish({ protocolVersion: 1, bridgeEpoch: wrapEpoch, seq: 0, eventId: randomUUID(),
+        occurredAt: now(), source: 'codex', type: 'capabilities.changed', agentId: null,
+        data: { capabilities: structuredClone(state.capabilities) } });
+      if (!baseFailed && state.connection.status === 'connected') publish({ protocolVersion: 1, bridgeEpoch: wrapEpoch, seq: 0, eventId: randomUUID(),
+        occurredAt: now(), source: 'codex', type: 'connection.changed', agentId: null,
+        data: { connection: { ...state.connection, message: baseConnectionMessage } } });
+    }
   }
   const wrapEpoch = 'history-' + randomUUID();
 
@@ -93,7 +102,7 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
     if (event.bridgeEpoch === baseEpoch && event.seq <= baseSeq) return;
     if (event.bridgeEpoch !== baseEpoch || event.seq !== baseSeq + 1) {
       baseFailed = true;
-      failHistorySource();
+      failHistorySource('Metadata observer lost event continuity.', false);
       publish({ protocolVersion: 1, bridgeEpoch: wrapEpoch, seq: 0, eventId: randomUUID(),
         occurredAt: now(), source: 'codex', type: 'connection.changed', agentId: null,
         data: { connection: { ...state.connection, status: 'disconnected',
@@ -120,16 +129,35 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
       // The first complete read of each thread is always history, including late arrivals.
       async function scan() {
         if (stopped || !state || sourceFailed || state.connection.status !== 'connected') return;
-        if (!options.reader.generation) throw new Error('Reader generation is required.');
-        if (generation !== options.reader.generation) { generation = options.reader.generation; baselined.clear(); }
+        if (!reader) {
+          if (!options.connectReader) { failHistorySource('History reader unavailable.'); return; }
+          let connected: VerifiedHistoryReader;
+          try { connected = await options.connectReader(); } catch { failHistorySource(); return; }
+          if (stopped || sourceFailed || baseFailed || !state || state.connection.status !== 'connected') {
+            await connected.close(); return;
+          }
+          reader = connected; generation = connected.generation; baselined.clear();
+        }
+        const current = reader;
+        if (!current.generation) { failHistorySource(); return; }
+        if (generation !== current.generation) {
+          generation = current.generation; baselined.clear();
+          if (enabled) {
+            enabled = false;
+            state.capabilities.observeHandoffs = unsupported('Handoff history is being rebaselined.');
+            publish({ protocolVersion: 1, bridgeEpoch: wrapEpoch, seq: 0, eventId: randomUUID(),
+              occurredAt: now(), source: 'codex', type: 'capabilities.changed', agentId: null,
+              data: { capabilities: structuredClone(state.capabilities) } });
+          }
+        }
         const agents = state.agents.filter(a => liveAgent(state!, a.agentId)).map(a => a.agentId);
         for (const threadId of agents) {
           if (stopped || sourceFailed || state.connection.status !== 'connected') return;
           let response: unknown;
-          try { response = await options.reader.read(threadId); } catch { if (enabled) failHistorySource(); else sourceFailed = true; return; }
-          if (stopped || !state || sourceFailed || state.connection.status !== 'connected') return;
-          if (!object(response) || !object(response.thread) || response.thread.id !== threadId || !Array.isArray(response.thread.turns)) { if (enabled) failHistorySource(); else sourceFailed = true; return; }
-          if (generation !== options.reader.generation) { generation = options.reader.generation; baselined.clear(); return; }
+          try { response = await current.read(threadId); } catch { if (!stopped && reader === current) failHistorySource(); return; }
+          if (stopped || !state || sourceFailed || reader !== current || state.connection.status !== 'connected') return;
+          if (!object(response) || !object(response.thread) || response.thread.id !== threadId || !Array.isArray(response.thread.turns)) { failHistorySource(); return; }
+          if (generation !== current.generation) { failHistorySource(); return; }
           const history = !baselined.has(threadId);
           for (const turn of response.thread.turns) {
             if (!object(turn) || typeof turn.id !== 'string' || !Array.isArray(turn.items)) continue;
@@ -141,7 +169,7 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
               const result = normalizer.observe({ source: 'codex', sourceNamespace: options.sourceNamespace, observedAt: occurredAt, delivery,
                 notification: { method: 'item/completed', params: { threadId, turnId: turn.id, item } } });
               if (result.kind === 'unavailable' && result.reason === 'capacity-exceeded') {
-                failHistorySource('Handoff history capacity reached; handoffs unavailable for this history.');
+                failHistorySource('Handoff history capacity reached; handoffs unavailable for this history.', false);
                 return;
               }
               if (result.kind === 'observed') for (const handoff of result.handoffs) {
@@ -154,7 +182,8 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
         }
       }
       function enableAfterBaseline(notify: boolean) {
-        if (enabled || sourceFailed || !state || baselined.size === 0 || state.connection.status !== 'connected') return;
+        if (enabled || sourceFailed || !state || baselined.size === 0 || state.connection.status !== 'connected' ||
+          state.agents.filter(a => liveAgent(state!, a.agentId)).some(a => !baselined.has(a.agentId))) return;
         enabled = true;
         state.capabilities.observeHandoffs = { supported: true, reason: 'Verified passive history reader.' };
         state.connection = { ...state.connection, message: handoffConnectionMessage };
@@ -165,7 +194,7 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
           occurredAt: now(), source: 'codex', type: 'connection.changed', agentId: null,
           data: { connection: structuredClone(state.connection) } });
       }
-      try { await scan(); } catch { sourceFailed = true; }
+      if (reader) { try { await scan(); } catch { failHistorySource(); } }
       enableAfterBaseline(false);
       const tick = async () => {
         if (stopped || sourceFailed) return;
@@ -173,15 +202,15 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
         finally { if (!stopped && !sourceFailed) timer = setTimeout(() => void tick(), pollMs); }
       };
       // An empty office is not a failed source: keep watching for its first arrival.
-      if (!sourceFailed) timer = setTimeout(() => void tick(), pollMs);
+      if (!sourceFailed) timer = setTimeout(() => void tick(), reader ? pollMs : 0);
     }
     return {
       initialSnapshot: () => structuredClone(state!),
       subscribe(listener) { if (!stopped) listeners.add(listener); return () => { listeners.delete(listener); }; },
-      async stop() { if (stopped) return; stopped = true; clearTimeout(timer); listeners.clear(); unsubscribe(); await Promise.all([options.base.stop(), options.reader.close()]); },
+      async stop() { if (stopped) return; stopped = true; clearTimeout(timer); listeners.clear(); unsubscribe(); await Promise.all([options.base.stop(), reader?.close()]); },
     };
   } catch (error) {
-    stopped = true; clearTimeout(timer); unsubscribe(); await Promise.all([options.base.stop(), options.reader.close()]);
+    stopped = true; clearTimeout(timer); unsubscribe(); await Promise.all([options.base.stop(), reader?.close()]);
     throw error;
   }
 }
