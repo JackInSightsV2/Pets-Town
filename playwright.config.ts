@@ -8,7 +8,7 @@ export default defineConfig({
   timeout: 30_000,
   expect: { timeout: 8_000 },
   reporter: [['list'], ['html', { open: 'never' }]],
-  use: { baseURL: 'http://127.0.0.1:5417', trace: 'retain-on-failure', screenshot: 'only-on-failure' },
+  use: { launchOptions: { executablePath: process.env.CHROME_PATH, args: process.env.CHROME_PATH ? ['--use-angle=metal', '--enable-gpu'] : ['--enable-unsafe-swiftshader'] }, baseURL: 'http://127.0.0.1:5417', trace: 'retain-on-failure', screenshot: 'only-on-failure' },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 1000 } } }],
   webServer: {
     command: 'npm run build && npx tsx tests/serve-e2e.ts',

@@ -59,7 +59,7 @@ test.afterEach(async ({ request }) => {
 
 test('a successful current turn leaves, and new work returns without removing its child or source identity', async ({ page, request }) => {
   await page.setViewportSize({ width: 600, height: 700 });
-  await page.goto('/');
+  await page.goto('/?view=2d');
   const parent = page.getByTestId('scene-agent-maple');
   const child = page.getByTestId('scene-agent-willow');
   await expect(parent).toHaveAttribute('data-lifecycle-phase', 'present');
@@ -84,7 +84,7 @@ test('a successful current turn leaves, and new work returns without removing it
 });
 
 test('an observed failure plays the native failed row before disappearing', async ({ page, request }) => {
-  await page.goto('/');
+  await page.goto('/?view=2d');
   const parent = page.getByTestId('scene-agent-maple');
   await expect(parent).toHaveAttribute('data-lifecycle-phase', 'present');
   await observe(request, parentTurn, 'failed');
@@ -97,7 +97,7 @@ test('an observed failure plays the native failed row before disappearing', asyn
 });
 
 test('an interrupted turn sleeps in the office and new work wakes it in place', async ({ page, request }) => {
-  await page.goto('/');
+  await page.goto('/?view=2d');
   const parent = page.getByTestId('scene-agent-maple');
   await expect(parent).toHaveAttribute('data-lifecycle-phase', 'present');
   await observe(request, parentTurn, 'interrupted');
@@ -123,7 +123,7 @@ test('a historical terminal snapshot establishes absence without replaying exit 
       if (pet && ['leaving', 'dying', 'entering'].includes(pet.getAttribute('data-lifecycle-phase') ?? '')) state.syntheticLifecycleMotion = true;
     }).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-lifecycle-phase'] });
   });
-  await page.goto('/');
+  await page.goto('/?view=2d');
   await expect(page.getByTestId('scene-agent-willow')).toHaveAttribute('data-lifecycle-phase', 'present');
   await expect(page.getByTestId('scene-agent-maple')).toHaveCount(0);
   expect(await page.evaluate(() => (window as unknown as { syntheticLifecycleMotion: boolean }).syntheticLifecycleMotion)).toBe(false);
@@ -134,7 +134,7 @@ test('a historical terminal snapshot establishes absence without replaying exit 
 });
 
 test('lifecycle cancels a real meeting and releases the surviving child', async ({ page, request }) => {
-  await page.goto('/');
+  await page.goto('/?view=2d');
   const scene = page.getByTestId('office-scene');
   const parent = page.getByTestId('scene-agent-maple');
   const child = page.getByTestId('scene-agent-willow');
@@ -165,7 +165,7 @@ test('decorative check-ins wave without source messages and yield immediately to
   await page.clock.pauseAt(clockTime);
   const posts: string[] = [];
   page.on('request', value => { if (value.method() === 'POST') posts.push(value.url()); });
-  await page.goto('/');
+  await page.goto('/?view=2d');
   const scene = page.getByTestId('office-scene');
   const parent = page.getByTestId('scene-agent-maple');
   const child = page.getByTestId('scene-agent-willow');
@@ -198,7 +198,7 @@ test('verified active turns allow check-ins and truthful labels while raw runtim
   const clockTime = new Date('2026-11-01T12:00:00Z');
   await page.clock.install({ time: clockTime });
   await page.clock.pauseAt(clockTime);
-  await page.goto('/');
+  await page.goto('/?view=2d');
   const scene = page.getByTestId('office-scene');
   const parent = page.getByTestId('scene-agent-maple');
   const child = page.getByTestId('scene-agent-willow');
@@ -227,7 +227,7 @@ test('verified active turns allow check-ins and truthful labels while raw runtim
 });
 
 test('idle zz and a verified session close retain the pet until its death animation finishes', async ({ page, request }) => {
-  await page.goto('/');
+  await page.goto('/?view=2d');
   const parent = page.getByTestId('scene-agent-maple');
   await expect(parent).toHaveAttribute('data-lifecycle-phase', 'present');
   await emit(request, 'agent.state.changed', 'maple', { runtimeState: 'idle' });

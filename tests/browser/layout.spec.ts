@@ -33,7 +33,7 @@ test('six projects and ten children remain inspectable without project overlays 
   const agents = await prepare(request, prefix);
   const parentId = `${prefix}-parent-0`, childId = `${prefix}-child-9`, requestId = `${prefix}-request`;
   try {
-    await page.goto('/');
+    await page.goto('/?view=2d');
     await expect(page.locator('.office-project-area, .office-project-label')).toHaveCount(0);
     await expect(page.getByRole('checkbox', { name: 'Show subagents' })).toHaveCount(0);
     await expect(page.locator(`[data-testid^="scene-agent-${prefix}-child-"]`)).toHaveCount(10);
@@ -67,7 +67,7 @@ test('joins, departures and missing parents retain inspectable sprites and stabl
   const late = agent(`${prefix}-late`, `${prefix}-project-5`);
   agents.push(orphan, late);
   try {
-    await page.goto('/');
+    await page.goto('/?view=2d');
     const parent = page.getByTestId(`scene-agent-${parentId}`);
     await expect(parent).toBeVisible();
     const home = [await parent.getAttribute('data-home-left'), await parent.getAttribute('data-home-top')];

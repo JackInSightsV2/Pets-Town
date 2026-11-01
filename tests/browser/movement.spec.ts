@@ -16,7 +16,7 @@ test.beforeEach(async({request})=>{
 });
 
 test('fullscreen startup uses live placement without changing runtime and ignores presentation-only resets',async({page,request})=>{
-  await page.goto('/');
+  await page.goto('/?view=2d');
   const pet=page.getByTestId('scene-agent-maple');
   await expect(pet).toHaveAttribute('data-location','home');
   await expect.poll(async () => ((await(await request.get('/api/office')).json()) as OfficeSnapshot).presentation.state).toBe('live');
@@ -34,7 +34,7 @@ test('fullscreen startup uses live placement without changing runtime and ignore
 });
 
 test('only observed idle moves a live pet to rest; disconnect and presentation retain truthful state',async({page,request})=>{
-  await page.goto('/');
+  await page.goto('/?view=2d');
   const pet=page.getByTestId('scene-agent-maple');
   await expect(pet).toHaveAttribute('data-location','home');
   const home=await point(pet);
@@ -61,7 +61,7 @@ test('only observed idle moves a live pet to rest; disconnect and presentation r
 test('pet sizes, chair destinations and decorative nearby idle chatter follow observed state',async({page,request})=>{
   await emit(request,'request.resolved','willow',{requestId:'missing-details',reason:'Synthetic setup'});
   await emit(request,'agent.state.changed','willow',{runtimeState:'working'});
-  await page.goto('/');
+  await page.goto('/?view=2d');
   const parent=page.getByTestId('scene-agent-maple');
   const child=page.getByTestId('scene-agent-willow');
   await expect(parent.locator('.native-pet')).toHaveCSS('width','54px');

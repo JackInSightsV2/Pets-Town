@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { HandoffStore } from '../client/handoffs';
 import { officeGeometry } from '../office/environment';
 import { OfficeScene } from './OfficeScene';
+import { ThreeOfficeScene } from './ThreeOfficeScene';
 import { PetDetails } from './PetDetails';
 import { connectionView, hasFixtureData, nativeAssetFor } from './view-model';
 import './styles.css';
@@ -14,6 +15,8 @@ export function App({ store, onPresentationAction }: AppProps) {
   const state = useSyncExternalStore(store.subscribe, store.getState, store.getState);
   const meetings = useSyncExternalStore(store.subscribeMeetings, store.getMeetingState, store.getMeetingState);
   const { snapshot, selectedAgentId } = state;
+  const [use3D, setUse3D] = useState(() => new URLSearchParams(window.location.search).get('view') !== '2d');
+  const Scene = use3D ? ThreeOfficeScene : OfficeScene;
   const [anchor, setAnchor] = useState({ x: 0, y: 0 });
   const startupAttempts = useRef<{ session: string; count: number } | null>(null);
   const mounted = useRef(true);
@@ -73,7 +76,8 @@ export function App({ store, onPresentationAction }: AppProps) {
   return <main className="office-canvas" data-testid="office-app" onPointerDown={event => {
     if (!(event.target instanceof Element) || !event.target.closest('.scene-agent, .pet-details')) store.selectAgent(null);
   }}>
-    <OfficeScene observerConnected={state.transport.status === 'connected'} geometry={officeGeometry} snapshot={sceneSnapshot} selectedAgentId={selectedAgentId} visibleAgents={visibleAgents}
+    {!use3D && <button className="view-switch-3d" onClick={() => setUse3D(true)}>3D venue</button>}
+    <Scene onUse2D={() => setUse3D(false)} connectionLabel={connectionView(state).label} connectionStale={connectionView(state).stale} observerConnected={state.transport.status === 'connected'} geometry={officeGeometry} snapshot={sceneSnapshot} selectedAgentId={selectedAgentId} visibleAgents={visibleAgents}
       onSelectAgent={(agentId, point) => { if (point) setAnchor(point); store.selectAgent(agentId); }}
       meeting={meetings.active} onMeetingComplete={store.completeMeeting} />
     {hasFixtureData(snapshot) && <span className="canvas-fixture-label" data-testid="fixture-banner">Fixture data</span>}
