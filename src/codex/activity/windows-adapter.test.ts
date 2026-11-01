@@ -15,7 +15,7 @@ test('real reader composition silently seeds history and publishes new command a
   const nameIndex = join(dir, 'names.jsonl');
   await writeFile(nameIndex, line({ id:'synthetic-thread', thread_name:'Synthetic title', updated_at:'2026-11-01T12:00:00Z' }));
   await writeFile(path, line({type:'session_meta',payload:{id:'synthetic-thread',cwd:dir}}) + line(record('old')));
-  const adapter = await createWindowsActivityAdapter({files:[path],cwds:[dir],pollMs:20,nameIndex}); t.after(()=>adapter.stop());
+  const adapter = await createWindowsActivityAdapter({files:[path],cwds:[dir],pollMs:20,nameIndex,now:()=> '2026-11-01T12:00:00Z'}); t.after(()=>adapter.stop());
   assert.equal((await adapter.initialSnapshot()).agents[0].recentActivity.length,0);
   assert.equal((await adapter.initialSnapshot()).agents[0].displayName,'Synthetic title');
   const events: OfficeEvent[]=[]; adapter.subscribe(e=>events.push(e));
@@ -26,6 +26,21 @@ test('real reader composition silently seeds history and publishes new command a
   assert.equal(agent.recentActivity.length,1); assert.equal(agent.recentActivity[0].summary,'Ran a command.');
   assert.equal(agent.activityKind,'unknown'); assert.equal(JSON.stringify(events).includes('PRIVATE'),false);
   assert.equal(events.some(e=>e.type==='agent.work.completed'),false);
+});
+
+test('a partial initial record remains history when completed on a later poll', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'activity-test-')); t.after(() => rm(dir, { recursive:true, force:true }));
+  const path = join(dir, 'synthetic.jsonl');
+  const historical = line(record('partial'));
+  const split = Math.floor(historical.length / 2);
+  await writeFile(path, line({type:'session_meta',payload:{id:'synthetic-thread',cwd:dir}}) + historical.slice(0,split));
+  const adapter = await createWindowsActivityAdapter({files:[path],cwds:[dir],pollMs:20,nameIndex:null}); t.after(()=>adapter.stop());
+  await appendFile(path,historical.slice(split)); await new Promise(r=>setTimeout(r,150));
+  assert.equal((await adapter.initialSnapshot()).agents[0].recentActivity.length,0);
+  await appendFile(path,line(record('live')));
+  const deadline = Date.now() + 3000;
+  while (Date.now() < deadline && !(await adapter.initialSnapshot()).agents[0].recentActivity.length) await new Promise(r=>setTimeout(r,25));
+  assert.equal((await adapter.initialSnapshot()).agents[0].recentActivity.length,1);
 });
 
 test('quarantined and out-of-scope records never publish staged activity', async t => {
