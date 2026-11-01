@@ -218,3 +218,66 @@ test('capacity exhaustion after startup revokes support without presenting the o
   assert.equal(h.events.filter(e => e.type === 'handoff.observed').length, 0);
   assert.equal(h.events.filter(e => e.type === 'capabilities.changed').at(-1)?.data.capabilities.observeHandoffs.supported, false);
 });
+
+test('factory retry restores support only after silent reconnect baseline', async t => {
+  const h = harness();
+  let calls = 0;
+  let failures = 1;
+  const adapter = await createHandoffHistoryAdapter({ base:h.base, sourceVerified:true, sourceNamespace:'verified-runtime', pollMs:10, now:()=>at,
+    connectReader: async () => { calls++; if (failures-- > 0) throw new Error('unavailable'); return h.reader; } });
+  t.after(()=>adapter.stop());
+  adapter.subscribe(event=>h.events.push(event));
+  assert.equal((await adapter.initialSnapshot()).capabilities.observeHandoffs.supported, false);
+  await delay(100);
+  assert.ok(calls >= 2);
+  assert.equal((await adapter.initialSnapshot()).capabilities.observeHandoffs.supported, true);
+  assert.equal(h.events.filter(e=>e.type==='handoff.observed').length, 0);
+  h.fail('a'); await delay(30);
+  assert.equal((await adapter.initialSnapshot()).capabilities.observeHandoffs.supported, false);
+  assert.equal((await adapter.initialSnapshot()).connection.status, 'connected');
+  h.items.set('a',[item('old'),item('while-offline')]); h.recover('a');
+  await delay(100);
+  assert.equal((await adapter.initialSnapshot()).capabilities.observeHandoffs.supported, true);
+  assert.equal(h.events.filter(e=>e.type==='handoff.observed').length, 0);
+  h.items.set('a',[item('old'),item('while-offline'),item('after-recovery')]); await delay(35);
+  const observed=h.events.filter(e=>e.type==='handoff.observed');
+  assert.equal(observed.length,1);
+  assert.equal(observed[0].data.handoff.sourceItemId,'after-recovery');
+});
+
+test('stop during in-flight reader connect closes late reader and emits nothing', async () => {
+  const h = harness();
+  let resolveReader!: (reader: VerifiedHistoryReader) => void;
+  let started!: () => void;
+  const connecting = new Promise<void>(resolve => { started = resolve; });
+  const pending = new Promise<VerifiedHistoryReader>(resolve => { resolveReader = resolve; });
+  const adapter = await createHandoffHistoryAdapter({ base:h.base, sourceVerified:true, sourceNamespace:'verified-runtime', pollMs:10,
+    connectReader: () => { started(); return pending; } });
+  adapter.subscribe(event=>h.events.push(event));
+  await connecting;
+  await adapter.stop();
+  resolveReader(h.reader);
+  await delay(30);
+  assert.equal(h.closes(),1);
+  assert.equal(h.events.length,0);
+});
+
+test('reader recovery waits for all scoped baseline reads before enabling', async t => {
+  const h = harness();
+  let resolveB!: (value: unknown) => void;
+  let readingB!: () => void;
+  const readB = new Promise<void>(resolve => { readingB = resolve; });
+  const pending = new Promise<unknown>(resolve => { resolveB = resolve; });
+  const reader: VerifiedHistoryReader = { generation:'reconnected', close() {},
+    read: async id => id === 'b' ? (readingB(), await pending) : h.reader.read(id) };
+  const adapter = await createHandoffHistoryAdapter({base:h.base,sourceVerified:true,sourceNamespace:'verified-runtime',pollMs:10,connectReader:async()=>reader});
+  t.after(()=>adapter.stop()); adapter.subscribe(e=>h.events.push(e));
+  await readB;
+  assert.equal((await adapter.initialSnapshot()).capabilities.observeHandoffs.supported,false);
+  h.items.set('a',[item('old'),item('during-baseline')]);
+  resolveB({thread:{id:'b',turns:[]}});
+  await delay(30);
+  assert.equal((await adapter.initialSnapshot()).capabilities.observeHandoffs.supported,true);
+  // Anything observed after A's first scan but during B's delayed scan remains
+  // an unavoidable polling window: it is discovered after support is enabled.
+});
