@@ -8,6 +8,14 @@ export const stateLabels: Record<RuntimeState, string> = {
   'waiting-for-approval': 'Waiting for approval', error: 'Agent error', closed: 'Session closed', unknown: 'State unavailable',
 };
 
+/** Show a separately verified turn when generic runtime metadata is unavailable. */
+export function observedStatusLabel(agent: OfficeAgent, snapshot: OfficeSnapshot): string {
+  if (agent.runtimeState !== 'unknown') return stateLabels[agent.runtimeState];
+  const turn = snapshot.latestTurns?.find(turn => turn.agentId === agent.agentId && turn.source === snapshot.source);
+  if (!turn) return stateLabels.unknown;
+  return { started: 'Turn in progress', succeeded: 'Turn finished', failed: 'Turn failed', interrupted: 'Turn interrupted' }[turn.status];
+}
+
 export function attentionFor(agent: OfficeAgent, snapshot: OfficeSnapshot) {
   const requests = snapshot.pendingRequests.filter(request => request.agentId === agent.agentId);
   const ids = new Set([...agent.pendingRequestIds, ...requests.map(request => request.requestId)]);

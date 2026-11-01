@@ -3,7 +3,7 @@ import type { PetAsset, RuntimeState } from '../shared/contract';
 import { animationFor } from './view-model';
 
 /** Draw only frames declared by a genuine native atlas manifest. */
-export function NativePet({ asset, state, size = 72, animationName }: { asset: PetAsset; state: RuntimeState; size?: number; animationName?: string }) {
+export function NativePet({ asset, state, size = 72, animationName, animationOnce = false }: { asset: PetAsset; state: RuntimeState; size?: number; animationName?: string; animationOnce?: boolean }) {
   const animation = (animationName ? asset.animations[animationName] : undefined) ?? animationFor(asset, state);
   const [frame, setFrame] = useState(0);
   const [imageState, setImageState] = useState<{ url: string; status: 'loading' | 'loaded' | 'failed' }>({ url: asset.imageUrl, status: 'loading' });
@@ -12,9 +12,9 @@ export function NativePet({ asset, state, size = 72, animationName }: { asset: P
   useEffect(() => {
     setFrame(0);
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const timer = window.setInterval(() => setFrame(previous => (previous + 1) % animation.frames), 1000 / animation.fps);
+    const timer = window.setInterval(() => setFrame(previous => animationOnce ? Math.min(previous + 1, animation.frames - 1) : (previous + 1) % animation.frames), 1000 / animation.fps);
     return () => window.clearInterval(timer);
-  }, [asset.assetId, animation.row, animation.frames, animation.fps]);
+  }, [asset.assetId, animation.row, animation.frames, animation.fps, animationOnce]);
   useEffect(() => {
     const timeout = window.setTimeout(() => setImageState(previous => previous.url === asset.imageUrl && previous.status === 'loaded' ? previous : { url: asset.imageUrl, status: 'failed' }), 8000);
     return () => window.clearTimeout(timeout);
