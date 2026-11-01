@@ -1,6 +1,8 @@
 # Reconciled delivery status — 2026-11-01
 
-This record reconciles GitHub issues, merged implementation and recorded acceptance evidence. The integration brings PRs #28, #32, #33, #35, #36 and #37 onto main. PR #31 is superseded by #30 and must not be merged. Earlier merge holds in PR descriptions are superseded by the user's instruction to reconcile and merge.
+This record reconciles GitHub issues, merged implementation and recorded acceptance evidence. The latest #33 revision (0248d69) makes the office fullscreen, enters live placement automatically, shows details in a pet popup and removes the ceremony/group controls. Those original #2/#3/#5/#6 criteria are superseded or unresolved, not passed by this UI. Source/transport loss is shown as Last observed only inside an open popup; the global status banner is gone.
+
+The integration brings PRs #28, #32, #33, #35, #36 and #37 onto main. PR #31 is superseded by #30 and must not be merged. Earlier merge holds in PR descriptions are superseded by the user's instruction to reconcile and merge.
 
 ## Acceptance status
 
@@ -10,13 +12,13 @@ This record reconciles GitHub issues, merged implementation and recorded accepta
 | #2 Office choreography | In progress | Live arrivals, standup, desks, idle rest, reset/skip | Detailed activity locations, verified completion celebration, final prop/geometry/path review |
 | #3 Inspection | In progress | Live selection, task/activity, missing-data/connection distinctions; Open chat action | Exact real pending request and original-client resolution; native deep-link activation |
 | #4 Handoff meetings | In progress; real source path recorded | Real correlated message drives pair meeting/return; queue, cancellation and replay checks | Final environment composition with #2 |
-| #5 Project/subagent mapping | Closed | Stable allocation, groups, overflow and hidden attention | No new gate; #33 deliberately removes area labels/outlines while retaining allocation and inspector project identity |
+| #5 Project/subagent mapping | Reopened | Stable allocation and overflow remain; all observed children render | Fullscreen #33 removes group expansion/hiding, roster and project identity display; reconcile those original acceptance criteria |
 | #6 Resilient demo | In progress | Launcher/reuse, live loop/runbook, Mac diagnostic helper | Teammate launch, final environment, timed 90-second rehearsal and full live failure/recovery checks |
 | #7 In-office responses | In progress; capability blocked | Correlation groundwork and aggregate waiting-state diagnostic | Supported passive exact request access/ownership and real response proof; Open chat does not satisfy this |
 | #8 Voice | Open; stretch | No implementation | #7 checkpoint and live audio validation |
 | #9 Computer view | Open; stretch | No implementation | #8 checkpoint and supported agent/view association |
 
-Only #5 is accepted closed: 1/9 slices (11%, rounded down). This is an acceptance count, not a code-completion estimate. The numbered task records and GitHub checklists distinguish partial delivery from acceptance.
+No slice is currently accepted closed: 0/9, after reopening #5 for the latest fullscreen scope change. This is an acceptance count, not a code-completion estimate. The numbered task records and GitHub checklists distinguish partial delivery from acceptance.
 
 ## Evidence boundaries
 
@@ -37,6 +39,8 @@ Against base `62e3b3a`, all six current branches merge without conflicts. Indepe
 1. Windows command activity now compares thread and turn against independently observed reader context; missing/mismatched turns are ignored. A composed-reader regression verifies a wrong-turn completion is suppressed while a matching completion is published.
 2. Waiting-state sampling now has a monotonic deadline with transport cleanup, including a blocked RPC and a sleeping sampler. Identity mismatches still fail explicitly.
 
-The combined build/typecheck and all 205 recursively discovered tests pass. All 10 browser tests pass on the integrated UI (synthetic data). The final fixes affect only observation/probe code, with focused and full unit reruns. The default `npm test` shell glob runs only 92 tests in this environment; reconciliation explicitly ran every `src/**/*.test.ts` recursively to include nested modules. Mac checker help and invalid-port behavior were exercised. JEV returned UNAVAILABLE and supplies no validation result.
+The final combined build/typecheck, all 206 recursively discovered tests and all 11 fullscreen browser tests pass. The mobile popup screenshot was visually inspected; it stays within the viewport. The default `npm test` shell glob runs only the top-level test directories in this environment; reconciliation explicitly ran every `src/**/*.test.ts` recursively to include nested modules. Mac checker help and invalid-port behavior were exercised. JEV returned UNAVAILABLE and supplies no validation result.
 
 No new live Mac/Windows acceptance run or timed team rehearsal was performed during reconciliation. Existing recorded evidence is preserved separately from this integration's automated checks.
+
+The previous live Mac screenshots predate the fullscreen update. They prove the source path at that checkpoint, not live acceptance of the new presentation.
