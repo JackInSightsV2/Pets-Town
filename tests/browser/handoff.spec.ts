@@ -26,7 +26,7 @@ test.beforeEach(async ({ request }) => {
 test('fresh SSE handoff moves the pair, shows its summary, returns home and ignores history/replay', async ({ page, request }) => {
   const historic = handoff('Historical fixture exchange');
   await emit(request, 'handoff.observed', 'maple', { handoff: historic });
-  await page.goto('/');
+  await page.goto('/?view=2d');
   await live(page, request);
   const scene = page.getByTestId('office-scene');
   await expect(scene).toHaveAttribute('data-meeting', '');
@@ -61,7 +61,7 @@ test('fresh SSE handoff moves the pair, shows its summary, returns home and igno
 });
 
 test('source disconnect cancels a meeting and reconnect does not replay it', async ({ page, request }) => {
-  await page.goto('/');
+  await page.goto('/?view=2d');
   await live(page, request);
   const scene = page.getByTestId('office-scene');
   const first = handoff('Fixture exchange interrupted by source disconnect');
@@ -78,7 +78,7 @@ test('source disconnect cancels a meeting and reconnect does not replay it', asy
 });
 
 test('backend reset and an observed participant failure cancel meetings', async ({ page, request }) => {
-  await page.goto('/');
+  await page.goto('/?view=2d');
   await live(page, request);
   const scene = page.getByTestId('office-scene');
   const first = handoff('Fixture exchange cancelled by scene reset');

@@ -1,6 +1,6 @@
 {
   "name": "petstown",
-  "version": "0.1.4",
+  "version": "0.1.6",
   "description": "See your existing Codex agents as a live office inside the conversation. Read-only, scoped to explicitly configured local projects.",
   "mcpServers": "./.mcp.json",
   "interface": {

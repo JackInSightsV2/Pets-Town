@@ -1,6 +1,6 @@
 # PetsTown inside ChatGPT
 
-PetsTown 0.1.4 provides a local, read-only MCP implementation of issue #40. It shares the existing observer and scene with the standalone browser office. The embedded UI uses the MCP Apps host bridge; it makes no localhost network requests and starts no agents.
+PetsTown 0.1.6 provides a local, read-only MCP implementation of issue #40. It shares the existing observer and scene with the standalone browser office. The embedded UI uses the MCP Apps host bridge; it makes no localhost network requests and starts no agents.
 
 ## Build and install on the local desktop
 
@@ -29,6 +29,8 @@ After code changes, rebuild, package and run `codex plugin add` again. Verify th
 Build/package on each target machine so the explicit project directory allowlist matches that machine. In Windows PowerShell, use `npm run package:chatgpt -- --project $PWD.Path`. Node.js must be on the desktop host's PATH. The server/UI code is shared across platforms; the generated local configuration remains machine-specific. Platform CI exercises both macOS and Windows, but CI fixtures do not establish live Windows desktop acceptance.
 
 ## Experience
+
+The default viewport is Elliot’s interactive 3D venue, with orbit, zoom, top view and pet focus. The original 2D office remains an explicit fallback.
 
 - `show_office` renders the team; optional stable `agentId` and `projectId` select or narrow the view.
 - Selecting a pet shares bounded observed context through the native host bridge. “Ask about this pet” sends an explicit read-only question to the existing composer.

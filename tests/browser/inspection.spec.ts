@@ -26,7 +26,7 @@ test.beforeEach(async ({ request }) => {
 test('pet popup preserves identity and exact request lifecycle through presentation changes', async ({ page, request }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto('/');
+  await page.goto('/?view=2d');
   const pet = page.getByTestId('scene-agent-maple');
   const attention = pet.getByLabel('Unresolved request');
   await pet.click();
@@ -73,7 +73,7 @@ test('a synthetic local-source snapshot links only the selected existing chat', 
     delete snapshot.latestTurns;
     await route.fulfill({ response, json: snapshot });
   });
-  await page.goto('/');
+  await page.goto('/?view=2d');
   await page.getByTestId('scene-agent-maple').click();
   await expect(page.getByTestId('open-chat')).toHaveAttribute('href', 'codex://threads/maple');
   await page.keyboard.press('Escape');
@@ -94,7 +94,7 @@ test('automatic live presentation retries one startup failure and stays idempote
     else await route.continue();
   });
   await page.route('**/api/presentation/skip', async route => { skips++; await route.continue(); });
-  await page.goto('/');
+  await page.goto('/?view=2d');
   await expect.poll(async () => ((await (await request.get('/api/office')).json()) as OfficeSnapshot).presentation.state).toBe('live');
   expect(starts).toBe(2);
   expect(skips).toBe(1);
@@ -108,7 +108,7 @@ test('automatic live presentation retries one startup failure and stays idempote
 });
 
 test('popup uses observed status and omits unavailable details through disconnect and recovery', async ({ page, request }) => {
-  await page.goto('/');
+  await page.goto('/?view=2d');
   const pet = page.getByTestId('scene-agent-willow');
   await pet.click();
   const popup = page.getByTestId('agent-inspector');
@@ -129,7 +129,7 @@ test('popup uses observed status and omits unavailable details through disconnec
 
 test('fullscreen office uses hover details and a viewport-bounded popup', async ({ page, request }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
+  await page.goto('/?view=2d');
   await expect(page.locator('header, footer, .agent-roster, .roster-panel, .office-toolbar, .office-project-area, .office-project-label, .scene-floor-tag, .scene-caption')).toHaveCount(0);
   await expect(page.getByTestId('agent-inspector')).toHaveCount(0);
   const pet = page.getByTestId('scene-agent-maple');

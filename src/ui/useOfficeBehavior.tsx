@@ -13,6 +13,10 @@ const emptyLifecycle = { sprites: [], snapshotRevision: 0 };
 const getEmptyLifecycle = () => emptyLifecycle;
 const getNull = () => null;
 
+export function useCompleteSceneLifecycle() {
+  return useContext(OfficeBehaviorContext)?.lifecycle.completeLifecycle;
+}
+
 export function useSceneLifecycles() {
   const source = useContext(OfficeBehaviorContext);
   return useSyncExternalStore(source?.lifecycle.subscribeLifecycle ?? noSubscription,

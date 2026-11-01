@@ -47,7 +47,7 @@ async function mount(page: Page, modes = ['inline', 'fullscreen', 'pip']) {
   await page.route('https://cdn.openai.com/**', async route => {
     const pet = builtInPets.find(item => item.imageUrl === route.request().url());
     if (!pet) return route.abort();
-    try { await route.fulfill({ contentType: 'image/webp', body: await readFile(`.cache/pets/${pet.assetId}.webp`) }); }
+    try { await route.fulfill({ contentType: 'image/webp', headers: { 'Access-Control-Allow-Origin': '*' }, body: await readFile(`.cache/pets/${pet.assetId}.webp`) }); }
     catch { await route.abort(); }
   });
   await page.goto('https://petstown-host.test/');
@@ -76,7 +76,7 @@ test('embedded selection, composer context and display modes use the host bridge
   await expect(frame.getByTestId('embedded-office')).toHaveClass(/mode-pip/);
   await frame.getByRole('button', { name: 'Back to chat' }).click();
   await expect(frame.getByTestId('embedded-office')).toHaveClass(/mode-inline/);
-  expect(urls.some(url => /127\.0\.0\.1|localhost/.test(url))).toBe(false);
+  expect(urls.some(url => /127\.0\.0\.1|localhost|\/api\/room\//.test(url))).toBe(false);
   expect(errors).toEqual([]);
 });
 
@@ -186,25 +186,36 @@ test('a new conversational selection wins over an older same-scope refresh', asy
   await expect(frame.getByTestId('embedded-details')).toContainText('Willow');
 });
 
-test('embedded office uses main geometry, role sizes and a stationary viewport', async ({ page }) => {
+test('embedded 3D venue preserves role sizes and its canvas across refresh and display modes', async ({ page }) => {
   const frame = await mount(page);
+  await expect(frame.getByTestId('office-scene')).toHaveAttribute('data-renderer', 'three');
+  const canvas = frame.locator('.venue-render canvas');
+  await expect(canvas).toBeVisible();
+  await canvas.evaluate(element => element.setAttribute('data-instance', 'original'));
   await page.evaluate(() => {
     const host = window as unknown as { hostResult: { _meta: { office: OfficeView } }; notify(method: string, params: unknown): void };
     host.hostResult._meta.office.snapshot.agents[1].parentAgentId = 'maple';
     host.notify('ui/notifications/tool-result', host.hostResult);
   });
-  // CSS zoom quantizes computed widths to subpixels. Verify the design sizes.
-  for (const [id, size] of [['maple', 54], ['willow', 36]] as const) {
-    await expect.poll(() => frame.getByTestId(`scene-agent-${id}`).locator('.native-pet')
-      .evaluate((e, expected) => Math.abs(parseFloat(getComputedStyle(e).width) - expected), size)).toBeLessThan(0.05);
+  for (const [id, width] of [['maple', '0.81'], ['willow', '0.54']] as const) {
+    const pet = frame.getByTestId(`scene-agent-${id}`);
+    await expect(pet).toHaveAttribute('data-pet-width', width);
+    await expect(pet).toHaveAttribute('data-pet-load', 'loaded');
+    await expect.poll(() => pet.evaluate(element => {
+      const pet = element.getBoundingClientRect(), scene = element.closest('.three-office')!.getBoundingClientRect();
+      return pet.left >= scene.left && pet.top >= scene.top && pet.right <= scene.right && pet.bottom <= scene.bottom;
+    })).toBe(true);
   }
-  await expect(frame.locator('.office-map-artwork')).toHaveAttribute('style', /width: 1000px/);
-  const viewport = frame.getByTestId('office-map-viewport');
-  await expect.poll(() => viewport.evaluate(e => [e.scrollLeft, e.scrollTop])).toEqual([0, 0]);
+
+  const before = await canvas.boundingBox();
   await frame.getByRole('button', { name: 'Refresh office' }).click();
+  await expect(canvas).toHaveAttribute('data-instance', 'original');
+  expect(await canvas.boundingBox()).toEqual(before);
   await frame.getByRole('button', { name: 'Expand', exact: true }).click();
-  await expect.poll(() => viewport.evaluate(e => [e.scrollLeft, e.scrollTop])).toEqual([0, 0]);
-  await frame.getByTestId('embedded-office').screenshot({ path: '/tmp/petstown-fixed-camera.png' });
+  await expect(canvas).toHaveAttribute('data-instance', 'original');
+  await expect(canvas).toBeVisible();
+  await expect(frame.getByRole('button', { name: 'Top view', exact: true })).toBeVisible();
+  await frame.getByTestId('embedded-office').screenshot({ path: '/tmp/petstown-embedded-3d.png' });
 });
 
 test('ordered refresh updates live state without replacing the embedded layout or selection', async ({ page }) => {
@@ -226,5 +237,6 @@ test('ordered refresh updates live state without replacing the embedded layout o
     const calls = (window as unknown as { calls: { arguments: { cursor?: { lastSeq: number } } }[] }).calls;
     return calls.at(-1)?.arguments.cursor?.lastSeq;
   })).toBe(0);
-  await expect.poll(() => frame.getByTestId('office-map-viewport').evaluate(e => [e.scrollLeft, e.scrollTop])).toEqual([0, 0]);
+  await expect(frame.getByTestId('office-scene')).toHaveAttribute('data-renderer', 'three');
+  await expect(frame.locator('.venue-render canvas')).toBeVisible();
 });

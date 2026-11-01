@@ -21,7 +21,7 @@ for (const size of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) 
       await route.fulfill({ response, json: snapshot });
     });
     await page.route('**/api/events?*', route => route.fulfill({ status: 204 }));
-    await page.goto('/');
+    await page.goto('/?view=2d');
     const first = page.getByTestId('scene-agent-camera-0');
     await expect(first).toBeVisible();
     await expect(page.getByTestId('office-map-surface')).toHaveCSS('transform', 'none');

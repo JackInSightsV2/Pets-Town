@@ -27,7 +27,7 @@ export interface EmbeddedState {
 }
 const clip = (value: string | null | undefined, max = 800) => value?.slice(0, max) ?? null;
 
-export function createEmbeddedController(app = new App({ name: 'PetsTown', version: '0.1.4' }, {
+export function createEmbeddedController(app = new App({ name: 'PetsTown', version: '0.1.6' }, {
   availableDisplayModes: ['inline', 'fullscreen', 'pip'],
 })) {
   const lifecycle = createLifecycleStore();
