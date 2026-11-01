@@ -189,3 +189,32 @@ test('connected message reflects handoff support initially and after metadata up
   assert.equal((await adapter.initialSnapshot()).connection.message,'Metadata refresh only.');
   assert.equal((await adapter.initialSnapshot()).capabilities.observeHandoffs.supported,false);
 });
+
+test('capacity exhaustion during initial history fails closed and preserves metadata', async t => {
+  const h = harness();
+  h.items.set('a', Array.from({length: 10_001}, (_, i) => item('baseline-' + i)));
+  const adapter = await setup(h); t.after(() => adapter.stop());
+  const snapshot = await adapter.initialSnapshot();
+  assert.equal(snapshot.capabilities.observeHandoffs.supported, false);
+  assert.match(snapshot.capabilities.observeHandoffs.reason!, /capacity/);
+  assert.equal(snapshot.connection.status, 'connected');
+  assert.equal(h.events.filter(e => e.type === 'handoff.observed').length, 0);
+  h.emit({protocolVersion:1,bridgeEpoch:'base',seq:1,eventId:'metadata-after-capacity',occurredAt:at,source:'codex',
+    type:'agent.upserted',agentId:'c',data:{agent:agent('c')}});
+  assert.ok((await adapter.initialSnapshot()).agents.some(a => a.agentId === 'c'));
+});
+
+test('capacity exhaustion after startup revokes support without presenting the overflow', async t => {
+  const h = harness();
+  h.items.set('a', Array.from({length: 10_000}, (_, i) => item('baseline-' + i)));
+  const adapter = await setup(h); t.after(() => adapter.stop());
+  assert.equal((await adapter.initialSnapshot()).capabilities.observeHandoffs.supported, true);
+  h.items.set('a', [...h.items.get('a')!, item('overflow')]);
+  await delay(200);
+  const snapshot = await adapter.initialSnapshot();
+  assert.equal(snapshot.capabilities.observeHandoffs.supported, false);
+  assert.match(snapshot.capabilities.observeHandoffs.reason!, /capacity/);
+  assert.equal(snapshot.connection.status, 'connected');
+  assert.equal(h.events.filter(e => e.type === 'handoff.observed').length, 0);
+  assert.equal(h.events.filter(e => e.type === 'capabilities.changed').at(-1)?.data.capabilities.observeHandoffs.supported, false);
+});
