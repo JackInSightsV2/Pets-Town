@@ -63,7 +63,7 @@ test('quarantined and out-of-scope records never publish staged activity', async
 test('a failed metadata poll retains validated pending activity until a scoped reconnect', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'activity-test-')); t.after(() => rm(dir, { recursive:true, force:true }));
   const path = join(dir, 'synthetic.jsonl');
-  await writeFile(path, line({type:'session_meta',payload:{id:'synthetic-thread',cwd:dir}}));
+  await writeFile(path, line({type:'session_meta',payload:{id:'synthetic-thread',cwd:dir}}) + started);
   let failNextRead = false, failed = false;
   const adapter = await createWindowsActivityAdapter({ files:[path], cwds:[dir], pollMs:20, nameIndex:null,
     wrapReader: reader => ({ get connected() { return reader.connected; }, close:()=>reader.close(), async call(method, params) {
@@ -84,7 +84,7 @@ test('a failed metadata poll retains validated pending activity until a scoped r
 test('activity capacity failure is reported even when the metadata connection event does not change', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'activity-test-')); t.after(() => rm(dir, { recursive:true, force:true }));
   const path = join(dir, 'synthetic.jsonl');
-  await writeFile(path, line({type:'session_meta',payload:{id:'synthetic-thread',cwd:dir}}));
+  await writeFile(path, line({type:'session_meta',payload:{id:'synthetic-thread',cwd:dir}}) + started);
   const adapter = await createWindowsActivityAdapter({files:[path],cwds:[dir],pollMs:20,nameIndex:null,now:()=> '2026-11-01T12:00:00Z'}); t.after(()=>adapter.stop());
   const events: OfficeEvent[]=[]; adapter.subscribe(event=>events.push(event));
   await appendFile(path, Array.from({length:10001}, (_, i)=>line(record(`item-${i}`))).join(''));
