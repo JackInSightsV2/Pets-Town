@@ -16,6 +16,7 @@ export interface MetadataReader {
 export interface MetadataAdapterOptions {
   allowedCwds: readonly string[];
   connect: () => Promise<MetadataReader>;
+  sourceDescription?: string;
   pollMs?: number;
   now?: () => string;
 }
@@ -31,7 +32,7 @@ export async function createMetadataAdapter(options: MetadataAdapterOptions): Pr
   if (!Number.isFinite(pollMs) || pollMs < 10) throw new Error('Poll interval must be at least 10ms.');
   const state = emptySnapshot('metadata-' + randomUUID());
   state.petAssets = structuredClone(builtInPets);
-  state.capabilities.observeAgents = { supported: true, reason: 'Read-only metadata polling; connection health is separate.' };
+  state.capabilities.observeAgents = { supported: true, reason: options.sourceDescription ?? 'Read-only metadata polling; connection health is separate.' };
   state.capabilities.observeHandoffs = unsupported('Metadata polling does not establish handoffs.');
   state.capabilities.respondToRequests = unsupported('Metadata cannot read or answer requests. Use the original Codex conversation.');
   const listeners = new Set<(event: OfficeEvent) => void>();
@@ -69,7 +70,7 @@ export async function createMetadataAdapter(options: MetadataAdapterOptions): Pr
     try {
       if (!rpc?.connected) {
         rpc?.close();
-        connection({ status: 'reconnecting', lastObservedAt: state.connection.lastObservedAt, message: 'Connecting to the existing Codex daemon.' });
+        connection({ status: 'reconnecting', lastObservedAt: state.connection.lastObservedAt, message: 'Connecting to the existing Codex metadata source.' });
         if (stopped) return;
         const connected = await options.connect();
         if (stopped) { connected.close(); return; }
@@ -115,12 +116,12 @@ export async function createMetadataAdapter(options: MetadataAdapterOptions): Pr
       }
       connection({ status: 'connected', lastObservedAt: observedAt, message: deferredProjects
         ? 'Metadata only. A new project was observed; reopen Office to include its project metadata.'
-        : 'Live metadata polling. Item activity, request details and handoffs are unavailable.' });
+        : (options.sourceDescription ?? 'Live metadata polling. Item activity, request details and handoffs are unavailable.') });
     } catch {
       if (stopped) return;
       rpc?.close(); rpc = null;
       connection({ status: 'disconnected', lastObservedAt: state.connection.lastObservedAt,
-        message: 'Could not read the existing Codex daemon. Existing agent state has been preserved.' });
+        message: 'Could not read the existing Codex metadata source. Existing agent state has been preserved.' });
     } finally {
       if (!stopped) timer = setTimeout(() => { void poll(); }, pollMs);
     }
