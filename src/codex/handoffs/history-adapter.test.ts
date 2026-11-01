@@ -127,3 +127,14 @@ test('events buffered during initial snapshot preserve one wrapper clock',async 
   assert.ok(snapshot.agents.some(a=>a.agentId==='c'));
   assert.equal(snapshot.lastSeq,1);
 });
+
+test('missing reader generation preserves base metadata while capability stays unavailable',async t=>{
+  const h=harness();
+  const reader:VerifiedHistoryReader={generation:'',read:async()=>{ throw new Error('must not read'); },close(){}};
+  const adapter=await createHandoffHistoryAdapter({base:h.base,reader,sourceVerified:true,sourceNamespace:'verified-runtime',pollMs:10});
+  t.after(()=>adapter.stop());
+  const snapshot=await adapter.initialSnapshot();
+  assert.equal(snapshot.connection.status,'connected');
+  assert.equal(snapshot.capabilities.observeHandoffs.supported,false);
+  assert.equal(snapshot.agents.length,2);
+});
