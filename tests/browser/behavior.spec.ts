@@ -225,3 +225,24 @@ test('verified active turns allow check-ins and truthful labels while raw runtim
   expect(after.latestTurns).toEqual(before.latestTurns);
   expect(after.recentHandoffs).toEqual(before.recentHandoffs);
 });
+
+test('idle zz and a verified session close retain the pet until its death animation finishes', async ({ page, request }) => {
+  await page.goto('/');
+  const parent = page.getByTestId('scene-agent-maple');
+  await expect(parent).toHaveAttribute('data-lifecycle-phase', 'present');
+  await emit(request, 'agent.state.changed', 'maple', { runtimeState: 'idle' });
+  await expect(parent).toHaveAttribute('data-idle-sleep', 'true');
+  expect(await parent.evaluate(element => getComputedStyle(element, '::after').content)).toContain('z z');
+  const position = await parent.evaluate(element => ({ left: (element as HTMLElement).style.left, top: (element as HTMLElement).style.top }));
+  try {
+    await emit(request, 'agent.closed', 'maple', { reason: 'Synthetic verified session close' });
+    await expect(parent).toHaveAttribute('data-lifecycle-phase', 'dying');
+    await expect(parent).toHaveAttribute('data-animation', 'failed');
+    expect(await parent.evaluate(element => ({ left: (element as HTMLElement).style.left, top: (element as HTMLElement).style.top }))).toEqual(position);
+    await expect(parent).toHaveCount(0);
+    await page.reload();
+    await expect(parent).toHaveCount(0);
+  } finally {
+    await emit(request, 'agent.state.changed', 'maple', { runtimeState: 'working' });
+  }
+});

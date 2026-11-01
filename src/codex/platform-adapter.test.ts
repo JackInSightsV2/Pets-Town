@@ -10,12 +10,17 @@ test('macOS selects the existing daemon; Windows selects existing session logs',
   assert.equal(observationSource('darwin', { PETSTOWN_ROLLOUT_ROOT: '/sessions' }, '/Users/example').kind, 'rollout');
 });
 
-test('Windows never attempts the Unix socket and macOS does not start a rollout reader by default', async () => {
+test('Windows never attempts the Unix socket and passes its home and environment to the lifecycle reader', async () => {
   const adapter = createUnsupportedAdapter();
   let selectedRoot = '';
   assert.equal(await createAdapter({ platform: 'win32', env: {}, home: 'C:\\Users\\example',
     metadata: async () => { throw new Error('Unix socket must not be used'); },
-    rollout: async ({ defaultRoot }) => { selectedRoot = defaultRoot; return adapter; },
+    rollout: async ({ defaultRoot, env, nameIndex }) => {
+      selectedRoot = defaultRoot;
+      assert.deepEqual(env, {});
+      assert.equal(nameIndex, 'C:\\Users\\example\\.codex\\session_index.jsonl');
+      return adapter;
+    },
   }), adapter);
   assert.equal(selectedRoot, 'C:\\Users\\example\\.codex\\sessions');
   assert.equal(await createAdapter({ platform: 'darwin', env: {}, home: '/Users/example',

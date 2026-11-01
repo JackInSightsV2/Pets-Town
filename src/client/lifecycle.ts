@@ -120,6 +120,9 @@ export function createLifecycleStore(initial?: OfficeSnapshot): LifecycleStore {
         if (previous.snapshot?.officeSessionId !== next.officeSessionId) controller.setPresentation('ready');
         controller.setPresentation(next.presentation.state);
         if (next.connection.status !== 'connected') suspend();
+        if (!repeated && baselineReady && event.type === 'agent.closed' && event.agentId && event.source === next.source) {
+          controller.close(event.agentId, event.eventId, deliveryGeneration);
+        }
         if (!repeated && baselineReady && event.type === 'agent.turn.observed') {
           const observation = event.data.observation;
           if (isTurnLifecycleObservation(observation) && event.source === next.source

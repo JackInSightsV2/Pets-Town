@@ -2,5 +2,5 @@
 .office-scene .scene-agent[data-motion="entering"]{transition:none;animation:office-return 1100ms ease-in-out both}
 .office-canvas .office-scene.mapped-office .scene-agent:is([data-motion="entering"],[data-motion="arriving"]){transition:none}
 @keyframes office-return{from{left:var(--entrance-x);top:var(--entrance-y)}to{left:var(--destination-x);top:var(--destination-y)}}
-.scene-agent[data-lifecycle-phase="sleeping"]::after{content:"z z";position:absolute;top:0;right:8px;font:600 12px/1 sans-serif;color:#66715f;letter-spacing:3px;pointer-events:none}
+.scene-agent[data-lifecycle-phase="sleeping"]::after,.scene-agent[data-idle-sleep="true"]::after{content:"z z";position:absolute;top:0;right:8px;font:600 12px/1 sans-serif;color:#66715f;letter-spacing:3px;pointer-events:none}
 @media(prefers-reduced-motion:reduce){.office-scene .scene-agent[data-motion="entering"]{animation:none;transition:none}}

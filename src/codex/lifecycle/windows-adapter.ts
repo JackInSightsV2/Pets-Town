@@ -166,10 +166,11 @@ export async function createWindowsTurnLifecycleAdapter(options: WindowsLifecycl
 }
 
 /** PR35 remains the base adapter; no modification to its reader or active services. */
-export async function createAdapter(options:{createBase?:()=>Promise<OfficeAdapter>;pollMs?:number;now?:()=>string}={}):Promise<OfficeAdapter> {
-  const root=process.env.PETSTOWN_ROLLOUT_ROOT;
-  const paths:unknown=JSON.parse(process.env.PETSTOWN_ROLLOUT_FILES??(root?'[]':'null'));
-  const cwds:unknown=JSON.parse(process.env.PETSTOWN_METADATA_CWDS??JSON.stringify([process.cwd()]));
+export async function createAdapter(options:{createBase?:()=>Promise<OfficeAdapter>;pollMs?:number;now?:()=>string;defaultRoot?:string;env?:NodeJS.ProcessEnv;nameIndex?:string|null}={}):Promise<OfficeAdapter> {
+  const env=options.env??process.env;
+  const root=env.PETSTOWN_ROLLOUT_ROOT??(env.PETSTOWN_ROLLOUT_FILES?undefined:options.defaultRoot);
+  const paths:unknown=JSON.parse(env.PETSTOWN_ROLLOUT_FILES??(root?'[]':'null'));
+  const cwds:unknown=JSON.parse(env.PETSTOWN_METADATA_CWDS??JSON.stringify([process.cwd()]));
   if(!Array.isArray(paths)||!paths.every(value=>typeof value==='string')||!Array.isArray(cwds)||!cwds.every(value=>typeof value==='string'))throw new Error('Invalid lifecycle rollout scope.');
   let discover:(()=>Promise<string[]>)|undefined;
   if(root){const module=await import('../rollout-discovery.js');discover=()=>module.discoverRollouts(root);}
@@ -177,7 +178,7 @@ export async function createAdapter(options:{createBase?:()=>Promise<OfficeAdapt
   let base:OfficeAdapter;
   try {
     if(options.createBase)base=await options.createBase();
-    else {const module=await import('../activity/windows-adapter.js');base=await module.createAdapter();}
+    else {const module=await import('../activity/windows-adapter.js');base=await module.createWindowsActivityAdapter({files:paths,root,cwds,pollMs:options.pollMs,now:options.now,nameIndex:options.nameIndex});}
   }catch(error){await reader.close();throw error;}
   return createWindowsTurnLifecycleAdapter({base,reader,pollMs:options.pollMs,now:options.now,subscribeWake:wake=>watchRollouts({root,files:paths},wake)});
 }

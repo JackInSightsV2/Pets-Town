@@ -58,7 +58,9 @@ export function OfficeScene({ snapshot, selectedAgentId, visibleAgents, onSelect
   const allocator = useRef<{ key: string; mapper: ReturnType<typeof createSceneLayout> } | null>(null);
   if (!allocator.current || allocator.current.key !== geometryKey) allocator.current = { key: geometryKey, mapper: createSceneLayout(geometry) };
   const lifecycles = useSceneLifecycles();
-  const nativeAgents = snapshot ? visibleAgents.filter(agent => agent.runtimeState !== 'closed' && nativeAssetFor(agent, snapshot.petAssets)) : [];
+  const dyingIds = new Set(lifecycles.filter(life => life.phase === 'dying').map(life => life.agentId));
+  const candidates = [...visibleAgents, ...(snapshot?.agents.filter(agent => agent.runtimeState === 'closed' && dyingIds.has(agent.agentId) && !visibleAgents.some(row => row.agentId === agent.agentId)) ?? [])];
+  const nativeAgents = snapshot ? candidates.filter(agent => (agent.runtimeState !== 'closed' || dyingIds.has(agent.agentId)) && nativeAssetFor(agent, snapshot.petAssets)) : [];
   const layout = allocator.current.mapper.map(snapshot ?? { agents: [], projects: [], pendingRequests: [] }, lifecycles,
     new Set(nativeAgents.map(agent => agent.agentId)));
   const sceneGeometry = { ...DEFAULT_OFFICE_GEOMETRY, ...geometry };
@@ -66,23 +68,6 @@ export function OfficeScene({ snapshot, selectedAgentId, visibleAgents, onSelect
   const state = snapshot?.presentation.state ?? 'ready';
   const sessionId = snapshot?.officeSessionId ?? '';
   const viewport = useRef<HTMLDivElement>(null);
-  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
-  const [artworkAspect, setArtworkAspect] = useState<number | null>(null);
-  useLayoutEffect(() => {
-    const view = viewport.current;
-    if (!view) return;
-    const measure = () => setViewportSize(previous => previous.width === view.clientWidth && previous.height === view.clientHeight
-      ? previous : { width: view.clientWidth, height: view.clientHeight });
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(view);
-    return () => observer.disconnect();
-  }, []);
-  // The image is contained within the logical canvas. Cover its painted bounds,
-  // then transform the entire world together so pets retain their map positions.
-  const paintedWidth = artworkAspect ? Math.min(artworkCanvas.width, artworkCanvas.height * artworkAspect) : artworkCanvas.width;
-  const paintedHeight = artworkAspect ? Math.min(artworkCanvas.height, artworkCanvas.width / artworkAspect) : artworkCanvas.height;
-  const cameraScale = autoFrame ? Math.max(viewportSize.width / paintedWidth, viewportSize.height / paintedHeight, 0.01) : 1;
   const formation = useRef<{ key: string; slots: Map<string, number> }>({ key: geometryKey, slots: new Map() });
   if (formation.current.key !== geometryKey) formation.current = { key: geometryKey, slots: new Map() };
   for (const id of [...layout.homes.keys()].sort()) if (!formation.current.slots.has(id)) formation.current.slots.set(id, formation.current.slots.size);
@@ -119,32 +104,28 @@ export function OfficeScene({ snapshot, selectedAgentId, visibleAgents, onSelect
     onSelectAgent(selectedAgentId, { x: bounds.left + bounds.width / 2, y: bounds.bottom });
   };
   useLayoutEffect(() => {
+    if (!autoFrame || !hasPets || !viewport.current) return;
     const view = viewport.current;
-    if (!autoFrame || !view || !viewportSize.width || !artworkAspect) return;
-    const first = placed[0];
-    view.scrollLeft = Math.max(0, (first?.point.x ?? paintedWidth / 2) * cameraScale - view.clientWidth / 2);
-    view.scrollTop = Math.max(0, (paintedHeight * cameraScale - view.clientHeight) / 2);
-    // Reveal the initial pet without relying on hover/click to auto-scroll it.
-    // Later snapshots and handoffs leave the user's chosen camera untouched.
-    const pet = view.querySelector<HTMLElement>('.scene-agent');
-    if (pet) {
-      const bounds = pet.getBoundingClientRect();
-      const frame = view.getBoundingClientRect();
-      const margin = 16;
-      if (bounds.left < frame.left + margin) view.scrollLeft += bounds.left - frame.left - margin;
-      else if (bounds.right > frame.right - margin) view.scrollLeft += bounds.right - frame.right + margin;
-      if (bounds.top < frame.top + margin) view.scrollTop += bounds.top - frame.top - margin;
-      else if (bounds.bottom > frame.bottom - margin) view.scrollTop += bounds.bottom - frame.bottom + margin;
+    if (state === 'ready') {
+      view.scrollTop = Math.max(0, layout.entrance.y + 60 - view.clientHeight);
+      view.scrollLeft = Math.max(0, layout.entrance.x - view.clientWidth / 2);
+    } else if (state === 'arrivals') {
+      // Keep the entrance origin in view while the pets approach the gathering.
+      view.scrollTop = Math.max(0, Math.min(layout.standup.y - 120, layout.entrance.y + 60 - view.clientHeight));
+    } else if (state === 'standup') {
+      view.scrollTop = Math.max(0, layout.standup.y - view.clientHeight / 2);
+    } else {
+      // Fit desks and rest together when possible; preserve horizontal exploration.
+      const points = placed.map(pet => pet.point);
+      const top = Math.min(...points.map(point => point.y)) - 100;
+      const bottom = Math.max(...points.map(point => point.y)) + 100;
+      view.scrollTop = bottom - top <= view.clientHeight ? Math.max(0, (top + bottom - view.clientHeight) / 2) : 0;
     }
-    refreshSelectedAnchor();
-    // Reframe only on scene entry or viewport changes, never on source polling.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, sessionId, hasPets, geometryKey, cameraScale, viewportSize.width, viewportSize.height, artworkAspect, autoFrame]);
+  }, [state, sessionId, hasPets, geometryKey, autoFrame]);
   return <div className="office-scene mapped-office" data-testid="office-scene" data-presentation={state} data-meeting={activeMeeting?.handoff.handoffId ?? ''} data-meeting-phase={phase} data-check-in={checkIn ? 'active' : ''} data-reduced-motion={reducedMotion} aria-label="Office scene">
     <div ref={viewport} className="office-map-viewport" data-testid="office-map-viewport" tabIndex={0} role="region" aria-label="Shared office map. Scroll to explore the office." onScroll={() => { setHover(null); refreshSelectedAnchor(); }}>
-      <div className="office-map-extent" style={{ width: worldWidth * cameraScale, height: worldHeight * cameraScale }}>
-      <div className="office-map-surface" data-testid="office-map-surface" style={{ width: worldWidth, height: worldHeight, transform: `scale(${cameraScale})` }}>
-        <img className="office-background office-map-artwork" src={officeBackground} style={{ width: artworkCanvas.width, height: artworkCanvas.height }} onLoad={event => setArtworkAspect(event.currentTarget.naturalWidth / event.currentTarget.naturalHeight)} alt="One open-plan office with desk areas, a central gathering rug, reading corners and sofas" />
+      <div className="office-map-surface" data-testid="office-map-surface" style={{ width: worldWidth, height: worldHeight }}>
+        <img className="office-background office-map-artwork" src={officeBackground} style={{ width: artworkCanvas.width, height: artworkCanvas.height }} alt="One open-plan office with desk areas, a central gathering rug, reading corners and sofas" />
         <div className="scene-grain" />
         {extraDesks.map(point => <div key={`${point.x}:${point.y}`} className="overflow-desk" aria-hidden="true" style={{ left: point.x, top: point.y }}><span /></div>)}
         {extraRests.map(point => <div key={`${point.x}:${point.y}`} className="overflow-bench" aria-hidden="true" style={{ left: point.x, top: point.y }} />)}
@@ -157,7 +138,7 @@ export function OfficeScene({ snapshot, selectedAgentId, visibleAgents, onSelect
           const size = agent.parentAgentId ? 36 : 54;
           const style = { left: point.x, top: point.y, '--pet-size': `${size}px`, '--entrance-x': `${entrance.x}px`, '--entrance-y': `${entrance.y}px`, '--standup-x': `${standup.x}px`, '--standup-y': `${standup.y}px`, '--destination-x': `${point.x}px`, '--destination-y': `${point.y}px`, '--arrival-delay': `${Math.min(formation.current.slots.get(agent.agentId)! * 70, 560)}ms` } as CSSProperties;
           const showHint = (button: HTMLButtonElement) => { const bounds = button.getBoundingClientRect(); setHover({ agentId: agent.agentId, anchor: { x: bounds.left + bounds.width / 2, y: bounds.top } }); };
-          return <button key={agent.agentId} className={`scene-agent ${selectedAgentId === agent.agentId ? 'is-selected' : ''}`} data-testid={`scene-agent-${agent.agentId}`} data-project-id={agent.projectId} data-meeting-participant={participantIndex !== -1} data-location={location} data-motion={motion} data-lifecycle-phase={lifecyclePhase} data-animation={animationName ?? ''} data-runtime-state={agent.runtimeState} data-home-left={`${home.x}px`} data-home-top={`${home.y}px`} aria-label={`Inspect ${agent.displayName}`} aria-pressed={selectedAgentId === agent.agentId} style={style}
+          return <button key={agent.agentId} className={`scene-agent ${selectedAgentId === agent.agentId ? 'is-selected' : ''}`} data-testid={`scene-agent-${agent.agentId}`} data-project-id={agent.projectId} data-meeting-participant={participantIndex !== -1} data-location={location} data-motion={motion} data-lifecycle-phase={lifecyclePhase} data-idle-sleep={agent.runtimeState === 'idle' && lifecyclePhase !== 'dying' && motion === 'settled' && participantIndex === -1 && attentionFor(agent, snapshot!).count === 0} data-animation={animationName ?? ''} data-runtime-state={agent.runtimeState} data-home-left={`${home.x}px`} data-home-top={`${home.y}px`} aria-label={`Inspect ${agent.displayName}`} aria-pressed={selectedAgentId === agent.agentId} style={style}
             onMouseEnter={event => showHint(event.currentTarget)} onMouseLeave={() => setHover(null)} onFocus={event => showHint(event.currentTarget)} onBlur={() => setHover(null)}
             onClick={event => { const bounds = event.currentTarget.getBoundingClientRect(); setHover(null); onSelectAgent(agent.agentId, { x: bounds.left + bounds.width / 2, y: bounds.bottom }); }}>
             {attentionFor(agent, snapshot!).count > 0 && <span className="scene-attention" aria-label="Unresolved request">!</span>}
@@ -166,7 +147,6 @@ export function OfficeScene({ snapshot, selectedAgentId, visibleAgents, onSelect
             {speech?.agentId === agent.agentId && <span className="ambient-chatter" data-testid="ambient-chatter" aria-label={`Decorative office chatter: ${speech.text}`}><small>Small talk</small>{speech.text}</span>}
           </button>;
         })}
-      </div>
       </div>
     </div>
     {hoveredAgent && hover && snapshot && <PetHint agent={hoveredAgent} anchor={hover.anchor} statusLabel={observedStatusLabel(hoveredAgent, snapshot)} />}

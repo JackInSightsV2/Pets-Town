@@ -74,3 +74,17 @@ test('rest chairs and overflow retain artwork geometry without expanding into un
   assert.deepEqual(next.rests.get('idle-1'), first.rests.get('idle-1'));
   assert.deepEqual([...next.homes], [...first.homes]);
 });
+
+test('a live closing sprite retains its chair until the death animation settles', () => {
+  const mapper = createSceneLayout(officeGeometry);
+  const a = agent('a'), b = agent('b');
+  const snapshot = { agents: [a, b], projects: [], pendingRequests: [] };
+  const ids = new Set(['a', 'b']);
+  const first = mapper.map(snapshot, [], ids);
+  const closed = { ...snapshot, agents: [{ ...a, runtimeState: 'closed' as const }, b] };
+  const dying = mapper.map(closed, [life('a', true, 'dying')], ids);
+  assert.deepEqual(dying.homes.get('a'), first.homes.get('a'));
+  const settled = mapper.map(closed, [life('a', false, 'absent')], ids);
+  assert.equal(settled.homes.has('a'), false);
+  assert.deepEqual(settled.homes.get('b'), first.homes.get('b'));
+});

@@ -15,9 +15,9 @@ export function createSceneLayout(config: Partial<OfficeGeometry> = {}) {
   return {
     map(snapshot: Pick<OfficeSnapshot, 'agents' | 'projects' | 'pendingRequests'>, lifecycles: readonly SpriteLifecycle[], candidateIds: ReadonlySet<string>): SceneLayout {
       const states = new Map(lifecycles.map(life => [life.agentId, life]));
-      const present = new Set(snapshot.agents.filter(agent => agent.runtimeState !== 'closed').map(agent => agent.agentId));
+      const present = new Set(snapshot.agents.filter(agent => (agent.runtimeState !== 'closed' || states.get(agent.agentId)?.phase === 'dying')).map(agent => agent.agentId));
       for (const id of assigned) if (!present.has(id)) assigned.delete(id);
-      const eligible = (agent: OfficeAgent) => candidateIds.has(agent.agentId) && agent.runtimeState !== 'closed' && (
+      const eligible = (agent: OfficeAgent) => candidateIds.has(agent.agentId) && (agent.runtimeState !== 'closed' || states.get(agent.agentId)?.phase === 'dying') && (
         agent.pendingRequestIds.length > 0 || agent.runtimeState === 'waiting-for-input' || agent.runtimeState === 'waiting-for-approval'
         || snapshot.pendingRequests.some(request => request.agentId === agent.agentId) || states.get(agent.agentId)?.visible !== false);
       for (const agent of snapshot.agents) if (eligible(agent)) assigned.add(agent.agentId);

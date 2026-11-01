@@ -1,11 +1,41 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import type { OfficeAdapter } from '../../server/adapter.js';
 import type { OfficeEvent, OfficeSnapshot } from '../../shared/contract.js';
 import { snapshot,agent,event } from '../../client/test-helpers.js';
 import { normalizeTurnLifecycle } from './normalizer.js';
-import { createWindowsTurnLifecycleAdapter,type LifecycleScan } from './windows-adapter.js';
+import { createAdapter, createWindowsTurnLifecycleAdapter,type LifecycleScan } from './windows-adapter.js';
 const sleep=(ms=25)=>new Promise(resolve=>setTimeout(resolve,ms));
+
+test('portable default root composes scoped metadata and lifecycle; explicit files override discovery', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'portable-lifecycle-'));
+  const path = join(dir, 'rollout-synthetic.jsonl');
+  const records = [
+    { type: 'session_meta', ordinal: 0, timestamp: '2026-01-01T00:00:00Z', payload: { id: 'portable-agent', cwd: dir, cli_version: '0.166.0', source: 'vscode' } },
+    { type: 'event_msg', ordinal: 1, timestamp: '2026-01-01T00:00:10Z', payload: { type: 'task_started', turn_id: 'portable-turn', started_at: 1767225605 } },
+    { type: 'event_msg', ordinal: 2, timestamp: '2026-01-01T00:00:11Z', payload: { type: 'task_complete', turn_id: 'portable-turn', started_at: 1767225605 } },
+  ];
+  try {
+    await writeFile(path, records.map(record => JSON.stringify(record)).join('\n') + '\n');
+    for (const env of [
+      { PETSTOWN_METADATA_CWDS: JSON.stringify([dir]) },
+      { PETSTOWN_METADATA_CWDS: JSON.stringify([dir]), PETSTOWN_ROLLOUT_FILES: JSON.stringify([path]) },
+      { PETSTOWN_METADATA_CWDS: JSON.stringify([dir]), PETSTOWN_ROLLOUT_ROOT: dir },
+    ]) {
+      const adapter = await createAdapter({ env, defaultRoot: env.PETSTOWN_ROLLOUT_FILES || env.PETSTOWN_ROLLOUT_ROOT ? join(dir, 'unused') : dir, nameIndex: null });
+      try {
+        const snapshot = await adapter.initialSnapshot();
+        assert.equal(snapshot.agents.length, 1);
+        assert.equal(snapshot.agents[0].agentId, 'portable-agent');
+        assert.equal(snapshot.latestTurns?.[0].status, 'succeeded');
+        assert.equal(snapshot.latestTurns?.[0].delivery, 'history');
+      } finally { await adapter.stop(); }
+    }
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
 function observation(status:string,turnId='turn-a',agentId='main',delivery:'live'|'history'='live') {
   const startedAt=turnId==='old'?50:turnId==='b'?200:turnId==='c'?300:100;
   const result=normalizeTurnLifecycle({source:'codex',sourceNamespace:'test',threadId:agentId,agentId,observedAt:'2026-01-01T00:00:00Z',delivery,format:'notification',value:{method:status==='inProgress'?'turn/started':'turn/completed',params:{threadId:agentId,turn:{id:turnId,status,startedAt}}}});

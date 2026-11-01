@@ -116,7 +116,7 @@ export function createOfficeBehaviorController(options: { checkInIntervalMs?: nu
       const visualStates = new Map(behaviorAgents.map(agent => [agent.agentId, agent.runtimeState]));
       const completedLifecycles: LifecycleToken[] = [];
       const completedMeetings: MeetingToken[] = [];
-      const nativeAgents = input.visibleAgents.filter(agent => agent.runtimeState !== 'closed'
+      const nativeAgents = input.visibleAgents.filter(agent => (agent.runtimeState !== 'closed' || lifecycle.get(agent.agentId)?.phase === 'dying')
         && snapshot?.petAssets.some(asset => asset.assetId === agent.petAssetId)
         && (attention(agent, snapshot) || lifecycle.get(agent.agentId)?.visible !== false));
       const rendered = new Set(nativeAgents.map(agent => agent.agentId));

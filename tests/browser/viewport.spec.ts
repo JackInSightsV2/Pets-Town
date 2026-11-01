@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import type { OfficeSnapshot } from '../../src/shared/contract.js';
 
 for (const size of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
-  test(`office camera fills ${size.width}×${size.height}, reveals its first pet and retains overflow access`, async ({ page }) => {
+  test(`office preserves logical scale at ${size.width}×${size.height} and retains overflow access`, async ({ page }) => {
     await page.setViewportSize(size);
     // Browser-only fixture: do not change the source roster or presentation.
     await page.route('**/api/office', async route => {
@@ -24,14 +24,8 @@ for (const size of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) 
     await page.goto('/');
     const first = page.getByTestId('scene-agent-camera-0');
     await expect(first).toBeVisible();
-    await expect.poll(async () => page.locator('.office-map-artwork').evaluate(image => {
-      const artwork = image as HTMLImageElement;
-      const bounds = artwork.getBoundingClientRect();
-      return artwork.complete && bounds.width >= innerWidth - 1
-        && bounds.width * artwork.naturalHeight / artwork.naturalWidth >= innerHeight - 1;
-    })).toBeTruthy();
-    // Actions such as hover/click auto-scroll, so check the initial framing first.
-    await expect(first).toBeInViewport({ ratio: 0.999 });
+    await expect(page.getByTestId('office-map-surface')).toHaveCSS('transform', 'none');
+    await expect(first.locator('.native-pet')).toHaveCSS('width', '54px');
     const home = [await first.getAttribute('data-home-left'), await first.getAttribute('data-home-top')];
     await first.click();
     const popup = page.getByTestId('agent-inspector');
@@ -47,12 +41,7 @@ for (const size of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) 
     });
     await expect.poll(async () => (await popup.boundingBox())!.y).toBeCloseTo(before.y - delta, 0);
     await page.setViewportSize({ width: size.width + 50, height: size.height + 50 });
-    await expect(first).toBeInViewport({ ratio: 0.999 });
-    await expect.poll(async () => {
-      const petBounds = (await first.boundingBox())!;
-      const popupBounds = (await popup.boundingBox())!;
-      return Math.abs(petBounds.x + petBounds.width / 2 - popupBounds.x - popupBounds.width / 2);
-    }).toBeLessThan(1);
+    await expect(page.getByTestId('office-map-surface')).toHaveCSS('transform', 'none');
     expect([await first.getAttribute('data-home-left'), await first.getAttribute('data-home-top')]).toEqual(home);
     await page.keyboard.press('Escape');
     const last = page.getByTestId('scene-agent-camera-23');

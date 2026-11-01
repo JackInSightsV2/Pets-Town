@@ -1,7 +1,7 @@
 import { homedir } from 'node:os';
 import { resolve, win32 } from 'node:path';
-import { createAdapter as metadata } from './metadata-adapter.js';
-import { createAdapter as rollout } from './rollout-adapter.js';
+import { createAdapter as metadata } from './lifecycle/mac-adapter.js';
+import { createAdapter as rollout } from './lifecycle/windows-adapter.js';
 import type { OfficeAdapter } from '../server/adapter.js';
 
 /** Select a passive source without starting or taking ownership of agents. */
@@ -18,10 +18,13 @@ export async function createAdapter(options: {
   env?: NodeJS.ProcessEnv;
   home?: string;
   metadata?: () => Promise<OfficeAdapter>;
-  rollout?: (options: { defaultRoot: string }) => Promise<OfficeAdapter>;
+  rollout?: (options: { defaultRoot: string; env: NodeJS.ProcessEnv; nameIndex: string }) => Promise<OfficeAdapter>;
 } = {}): Promise<OfficeAdapter> {
   const source = observationSource(options.platform, options.env, options.home);
+  const paths = (options.platform ?? process.platform) === 'win32' ? win32 : { resolve };
+  const env = options.env ?? process.env;
+  const codexHome = env.CODEX_HOME ?? paths.resolve(options.home ?? homedir(), '.codex');
   return source.kind === 'metadata'
     ? (options.metadata ?? metadata)()
-    : (options.rollout ?? rollout)({ defaultRoot: source.defaultRoot });
+    : (options.rollout ?? rollout)({ defaultRoot: source.defaultRoot, env, nameIndex: paths.resolve(codexHome, 'session_index.jsonl') });
 }

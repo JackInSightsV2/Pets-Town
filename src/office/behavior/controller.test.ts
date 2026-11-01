@@ -583,3 +583,18 @@ test('an active decorative wave takes priority over idle small talk', () => {
   assert.ok(waving.checkIn);
   assert.equal(waving.speech, null);
 });
+
+test('closed session sprite plays its accepted death at the previous position before disappearing', () => {
+  const current = input();
+  const behavior = createOfficeBehaviorController();
+  const first = behavior.update(current, 0).placed.find(p => p.agent.agentId === 'parent')!;
+  current.snapshot!.agents[0].runtimeState = 'closed';
+  const token = { generation: 1, serial: 1, agentId: 'parent', turnId: 'session-close:event-1' };
+  current.lifecycles = [life('parent', { phase: 'dying', pose: 'dying', token, meetingEligible: false }), life('child')];
+  const dying = behavior.update(current, 1).placed.find(p => p.agent.agentId === 'parent')!;
+  assert.equal(dying.animationName, 'failed');
+  assert.deepEqual(dying.point, first.point);
+  assert.deepEqual(behavior.update(current, 501).completedLifecycles, [token]);
+  current.lifecycles = [life('parent', { phase: 'absent', pose: 'dead', visible: false, meetingEligible: false }), life('child')];
+  assert.equal(behavior.update(current, 502).placed.some(p => p.agent.agentId === 'parent'), false);
+});

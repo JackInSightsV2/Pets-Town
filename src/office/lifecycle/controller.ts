@@ -24,7 +24,7 @@ export interface LifecycleBaseline {
   connected: boolean;
   presentation: PresentationState;
 }
-type Entry = { observation: TurnLifecycleObservation | null; phase: LifecyclePhase; outcome: OutcomePresentationState; token: LifecycleToken | null };
+type Entry = { closed?: boolean; observation: TurnLifecycleObservation | null; phase: LifecyclePhase; outcome: OutcomePresentationState; token: LifecycleToken | null };
 const clone = <T>(value: T): T => structuredClone(value);
 const tokenKey = (token: LifecycleToken) => JSON.stringify([token.generation, token.serial, token.agentId, token.turnId]);
 const waiting = (agent: OfficeAgent) => agent.pendingRequestIds.length > 0 || agent.runtimeState === 'waiting-for-input' || agent.runtimeState === 'waiting-for-approval';
@@ -56,6 +56,7 @@ export function createTurnLifecycleController(options: { maxObservations?: numbe
   let effects: LifecycleEffect[] = [];
   const fresh = (): Entry => ({ observation: null, phase: 'unknown', outcome: createOutcomePresentation(), token: null });
   function settle(entry: Entry) {
+    if (entry.closed) { entry.phase = 'absent'; entry.outcome = createOutcomePresentation('dead'); entry.token = null; return; }
     if (!entry.observation) return;
     const status = entry.observation.status;
     entry.outcome = presentTurnOutcome(entry.outcome, { status, token: entry.observation.sourceEventId, mode: 'baseline' }).state;
@@ -93,6 +94,7 @@ export function createTurnLifecycleController(options: { maxObservations?: numbe
       presentation = input.presentation;
       for (const id of [...entries.keys()]) if (!agents.has(id)) entries.delete(id);
       for (const id of agents.keys()) if (!entries.has(id)) entries.set(id, fresh());
+      for (const [id, entry] of entries) { entry.closed = agents.get(id)!.runtimeState === 'closed'; if (entry.closed) settle(entry); }
       const counts = new Map<string, number>();
       for (const row of input.latestTurns) if (isTurnLifecycleObservation(row)) counts.set(row.agentId, (counts.get(row.agentId) ?? 0) + 1);
       for (const observation of input.latestTurns) {
@@ -129,9 +131,24 @@ export function createTurnLifecycleController(options: { maxObservations?: numbe
         }
       }
     },
+    /** A verified live session closure is distinct from a turn outcome. */
+    close(agentId: string, eventId: string, deliveryGeneration: number): boolean {
+      const agent = agents.get(agentId), entry = entries.get(agentId);
+      if (deliveryGeneration !== generation || !connected || presentation !== 'live' || !agent || !entry
+        || agent.runtimeState !== 'closed' || entry.closed || waiting(agent)) return false;
+      entry.closed = true;
+      if (!entry.outcome.visible) { settle(entry); return false; }
+      const token = { generation: motionGeneration, serial: ++serial, agentId, turnId: `session-close:${eventId}` };
+      entry.token = token;
+      entry.phase = 'dying';
+      entry.outcome = { pose: 'dying', visible: true, pendingDeathToken: tokenKey(token), lastObservationToken: eventId };
+      effects = effects.filter(effect => effect.token.agentId !== agentId);
+      effects.push({ type: 'die', token: clone(token) });
+      return true;
+    },
     observe(observation: TurnLifecycleObservation, deliveryGeneration: number): 'applied' | 'duplicate' | 'ignored' | 'unavailable' {
       if (deliveryGeneration !== generation || !connected) return 'ignored';
-      if (!isTurnLifecycleObservation(observation) || !agents.has(observation.agentId)) return 'unavailable';
+      if (!isTurnLifecycleObservation(observation) || !agents.has(observation.agentId) || entries.get(observation.agentId)?.closed) return 'unavailable';
       // Late discovery and source reconnect may deliver a latest-turn baseline
       // after the roster snapshot. It is authoritative presence, never motion.
       if (observation.delivery === 'history') {

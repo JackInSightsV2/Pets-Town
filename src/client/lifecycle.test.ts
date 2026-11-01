@@ -286,3 +286,33 @@ test('explicit handoffs remain available without lifecycle history and never inf
   assert.ok(store.getState().snapshot!.agents.every(candidate => candidate.runtimeState === 'unknown'));
   assert.deepEqual(store.getMeetingState().hiddenSignals, []);
 });
+
+test('only accepted live session closure plays one death and never invents a turn failure', () => {
+  const initial = live();
+  const store = createLifecycleStore(initial);
+  store.applyEvent(event(1, 'agent.closed', { reason: null }));
+  const dying = store.getLifecycleState().sprites[0];
+  assert.equal(dying.phase, 'dying');
+  assert.equal(dying.status, 'started');
+  assert.equal(store.getState().snapshot!.agents[0].runtimeState, 'closed');
+  assert.deepEqual(store.getState().snapshot!.latestTurns, initial.latestTurns);
+  store.applyEvent(event(2, 'agent.closed', { reason: null }));
+  assert.deepEqual(store.getLifecycleState().sprites[0].token, dying.token);
+  assert.equal(store.completeLifecycle(dying.token!), true);
+  assert.equal(store.getLifecycleState().sprites[0].visible, false);
+  assert.equal(store.completeLifecycle(dying.token!), false);
+
+  const historical = createLifecycleStore({ ...initial, agents: initial.agents.map(a => ({ ...a, runtimeState: 'closed' })) });
+  assert.equal(historical.getLifecycleState().sprites[0].phase, 'absent');
+  assert.equal(historical.getLifecycleState().sprites[0].token, null);
+  const stale = createLifecycleStore(initial);
+  stale.setTransportStatus('disconnected');
+  stale.applyEvent(event(1, 'agent.closed', { reason: null }));
+  assert.notEqual(stale.getLifecycleState().sprites[0].phase, 'dying');
+  const gap = createLifecycleStore(initial);
+  gap.applyEvent(event(2, 'agent.closed', { reason: null }));
+  assert.notEqual(gap.getLifecycleState().sprites[0].phase, 'dying');
+  const metadata = createLifecycleStore(initial);
+  metadata.applyEvent(event(1, 'agent.state.changed', { runtimeState: 'closed' }));
+  assert.notEqual(metadata.getLifecycleState().sprites[0].phase, 'dying');
+});
