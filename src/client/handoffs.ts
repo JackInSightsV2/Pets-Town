@@ -19,9 +19,9 @@ function freeze<T>(value: T): T {
 }
 
 /** Single delivery boundary for office truth and presentation-only handoffs. */
-export function createHandoffStore(): HandoffStore {
-  const store = createOfficeStore();
-  const controller = createHandoffController({ store });
+export function createHandoffStore(options: { store?: OfficeStore; getEligibleAgentIds?: () => readonly string[] } = {}): HandoffStore {
+  const store = options.store ?? createOfficeStore();
+  const controller = createHandoffController({ store, getEligibleAgentIds: options.getEligibleAgentIds });
   const listeners = new Set<() => void>();
   let visibleAgentIds: string[] = [];
   let meetingState = freeze(controller.getState());
