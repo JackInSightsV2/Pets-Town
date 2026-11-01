@@ -1,7 +1,7 @@
 name: Handoff boundary
 on:
   push:
-    branches: [codex/s4-handoffs]
+    branches: [codex/s4-handoffs, codex/s4-handoff-normalizer]
   pull_request:
     paths:
       - 'src/office/handoffs/**'
@@ -24,3 +24,4 @@ jobs:
       - run: npm run build
       - run: npm test
       - run: npx tsx --test src/office/handoffs/*.test.ts
+      - run: npx tsx --test src/codex/handoffs/*.test.ts
