@@ -44,3 +44,5 @@ Lane C owns the shared app/server entrypoints and package changes. Jack's #3 pan
 Do not infer that a newly opened PR replaces an agreed contract. Inspect its content and acceptance evidence. Do not automatically merge, close issues, or reassign another teammate's work merely to increase throughput.
 
 Each worker keeps its own changes intact when refreshing its branch. Use normal Git protections; no forced reset, overwrite or force push as a coordination shortcut.
+
+If a new Dot cannot locate the named watch, obtain its stable automation handle from the preparation chat. An inaccessible or unknown monitor must not be treated as absent; avoid creating a duplicate schedule. Keep task/host identifiers in the coordinator conversation rather than adding them to the public repository.
