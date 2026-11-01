@@ -133,7 +133,7 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
           baselined.add(threadId);
         }
       }
-      await scan();
+      try { await scan(); } catch { sourceFailed = true; }
       enabled = !sourceFailed && primeReads > 0 && state.connection.status === 'connected';
       if (enabled) state.capabilities.observeHandoffs = { supported: true, reason: 'Verified passive history reader.' };
       const tick = async () => { if (stopped || !enabled) return; try { await scan(); } catch { failHistorySource(); } finally { if (!stopped && enabled) timer = setTimeout(() => void tick(), pollMs); } };
