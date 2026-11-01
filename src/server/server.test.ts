@@ -32,7 +32,7 @@ test('presentation requires token/same origin and is idempotent; requests persis
   a.emit(event('request.resolved',{requestId:'request-1',reason:'Answered elsewhere'}));current=await (await fetch(server.url+'/api/office')).json();assert.equal(current.pendingRequests.length,0);
 });
 
-test('SSE replays bridge sequence and rejects gaps/epochs without mutating runtime state',async(t)=>{
+test('SSE replays bridge sequence and rejects gaps/epochs without mutating runtime state',{timeout:5000},async(t)=>{
   const a=adapter();const server=await createOfficeServer({adapter:a.source,replayLimit:2});t.after(()=>server.close());
   const initial=await (await fetch(server.url+'/api/office')).json();
   for(let i=0;i<3;i++)a.emit(event('connection.changed',{connection:{status:'disconnected',lastObservedAt:null,message:'Observed disconnect'}}));
@@ -40,7 +40,7 @@ test('SSE replays bridge sequence and rejects gaps/epochs without mutating runti
   assert.equal((await fetch(server.url+'/api/events?cursor=old:1')).status,409);
   assert.equal((await fetch(server.url+`/api/events?cursor=${initial.bridgeEpoch}:999`)).status,409);
   const abort=new AbortController();const response=await fetch(server.url+'/api/events',{headers:{'Last-Event-ID':`${initial.bridgeEpoch}:1`},signal:abort.signal});assert.equal(response.status,200);
-  const reader=response.body!.getReader();const text=new TextDecoder().decode((await reader.read()).value);assert.match(text,/event: office/);assert.match(text, new RegExp(`${initial.bridgeEpoch}:2`));assert.match(text, /"seq":3/);await reader.cancel();abort.abort();
+  const reader=response.body!.getReader();let text='';const decoder=new TextDecoder();while(!text.includes('\"seq\":3')){const chunk=await reader.read();if(chunk.done)break;text+=decoder.decode(chunk.value,{stream:true});}assert.match(text,/event: office/);assert.match(text, new RegExp(`${initial.bridgeEpoch}:2`));assert.match(text, /"seq":3/);await reader.cancel();abort.abort();
 });
 
 test('static files only from dist or approved office asset; symlink traversal rejected',async(t)=>{
@@ -101,7 +101,10 @@ test('a project discovered after bootstrap reaches the browser store through SSE
   const response = await fetch(server.url + `/api/events?cursor=${initial.bridgeEpoch}:0`, { signal: AbortSignal.timeout(3000) });
   const reader = response.body!.getReader();
   try {
-    const chunk = new TextDecoder().decode((await reader.read()).value);
+    let chunk = ''; const decoder = new TextDecoder();
+    while (!chunk.includes('data: ') || !chunk.slice(chunk.indexOf('data: ')).includes('\n\n')) {
+      const next = await reader.read(); if (next.done) break; chunk += decoder.decode(next.value, { stream: true });
+    }
     const line = chunk.split('\n').find(line => line.startsWith('data: '));
     assert.ok(line);
     const delivered: unknown = JSON.parse(line.slice(6));
