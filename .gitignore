@@ -7,3 +7,7 @@ test-results/
 .env
 .env.local
 .cache/
+dist-chatgpt/
+plugins/petstown/server.mjs
+plugins/petstown/office.html
+plugins/petstown/mcp.json

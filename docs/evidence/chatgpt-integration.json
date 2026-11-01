@@ -1,0 +1,38 @@
+{
+  "recordedAt": "2026-11-01T15:35:39.277474+00:00",
+  "branch": "epic/chatgpt-office-40",
+  "plugin": "petstown@petstown-local",
+  "installed": true,
+  "enabled": true,
+  "scope": "exact PetsTown project directory",
+  "tools": [
+    "show_office",
+    "refresh_office",
+    "inspect_agent"
+  ],
+  "liveProbe": {
+    "source": "codex",
+    "connected": true,
+    "agentCount": 6,
+    "observedAt": "2026-11-01T15:35:18.479Z",
+    "controlTokenExposed": false
+  },
+  "checks": {
+    "unitAndProtocol": 96,
+    "embeddedSimulatedHost": 6,
+    "standaloneBrowserInspection": 5,
+    "typecheck": "passed",
+    "standaloneBuild": "passed"
+  },
+  "bundleSha256": {
+    "server.mjs": "07b802a0888f79dad933fc7b9027d1b782688e45a19f5c5ce7a03091849a18a4",
+    "office.html": "29dae2fa95741c82d88f0bcdf1499c2796d5a974640ff9d7295a7b27adf9e1f2"
+  },
+  "pending": [
+    "actual ChatGPT invocation and visual acceptance",
+    "actual native-composer follow-up",
+    "host display-mode acceptance",
+    "upstream #7 response route and #45"
+  ],
+  "jev": "unavailable: disabled"
+}
