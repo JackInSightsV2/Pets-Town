@@ -49,10 +49,7 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
     if (!state || sourceFailed) return;
     sourceFailed = true; enabled = false;
     state.capabilities.observeHandoffs = unsupported('History reader failed; reopen Office to retry.');
-    publish({ protocolVersion: 1, bridgeEpoch: wrapEpoch, seq: 0, eventId: 'history-failure-' + randomUUID(),
-      occurredAt: now(), source: 'codex', type: 'connection.changed', agentId: null,
-      data: { connection: { status: 'disconnected', lastObservedAt: state.connection.lastObservedAt,
-        message: 'Handoff history became unavailable; reopen Office to retry.' } } });
+    // History support and the metadata transport have separate health states.
   }
   const wrapEpoch = 'history-' + randomUUID();
 
@@ -84,7 +81,6 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
     if (event.bridgeEpoch === baseEpoch && event.seq <= baseSeq) return;
     if (event.bridgeEpoch !== baseEpoch || event.seq !== baseSeq + 1) { failHistorySource(); return; }
     baseSeq = event.seq;
-    if (sourceFailed && event.type === 'connection.changed') return;
     publish(event);
     if (enabled && event.type === 'connection.changed' && event.data.connection.status !== 'connected') failHistorySource();
   }
