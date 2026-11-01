@@ -3,6 +3,7 @@ import { isAbsolute } from 'node:path';
 import type { MetadataReader } from './metadata-adapter.js';
 import { MetadataRpcError } from './metadata-rpc.js';
 import { canonicalizeCwd } from './observer-normalization.js';
+import { RolloutActivityBatch } from './activity/rollout-activity.js';
 
 const READ_CHUNK_BYTES = 64 * 1024;
 // Bound memory per record while accommodating large normal transcript records.
@@ -29,7 +30,7 @@ export class RolloutReader implements MetadataReader {
     return this.quarantined.size ? `${this.quarantined.size} rollout file(s) quarantined; some sessions may be missing.` : undefined;
   }
 
-  constructor(paths: readonly string[], discover?: () => Promise<string[]>) {
+  constructor(paths: readonly string[], discover?: () => Promise<string[]>, private readonly onActivityBatch?: (threadId: string, cwd: string, batch: RolloutActivityBatch) => void) {
     if ((!paths.length && !discover) || paths.length > MAX_PATHS || paths.some(p => !isAbsolute(p) || p.includes('\0')) || new Set(paths).size !== paths.length)
       throw new Error('Provide a bounded list of distinct absolute rollout paths.');
     this.discover = discover;
@@ -66,9 +67,12 @@ export class RolloutReader implements MetadataReader {
       for (const path of additions) this.files.push({ path, offset: 0, prefix: Buffer.alloc(0), dev: 0, ino: 0,
         historicalEnd: 0, lastSize: 0, initial: true, status: 'unknown' });
     }
+    const batches = new Map<FileState, RolloutActivityBatch>();
+    const budget = { count: 0, limit: 10_000 };
     for (const file of this.files) {
       if (this.quarantined.has(file)) continue;
-      try { await this.readFile(file); } catch { this.quarantined.add(file); }
+      const batch = new RolloutActivityBatch(10_000, budget);
+      try { await this.readFile(file, batch); batches.set(file, batch); } catch { this.quarantined.add(file); }
     }
     const identities = new Map<string, FileState[]>();
     for (const file of this.files) if (file.id && file.cwd) {
@@ -81,9 +85,13 @@ export class RolloutReader implements MetadataReader {
       else if (!this.quarantined.has(group[0])) rows.set(id, group[0]);
     }
     this.rows = rows;
+    if (this.onActivityBatch) for (const [id, file] of rows) {
+      const batch = batches.get(file);
+      if (batch && file.cwd) this.onActivityBatch(id, file.cwd, batch);
+    }
   }
 
-  private async readFile(file: FileState): Promise<void> {
+  private async readFile(file: FileState, batch: RolloutActivityBatch): Promise<void> {
     const handle = await open(file.path, 'r');
     try {
       const stat = await handle.stat();
@@ -118,7 +126,7 @@ export class RolloutReader implements MetadataReader {
           lineLength += part.length;
           if (lineLength > MAX_LINE_BYTES) throw new Error('Oversized rollout line.');
           pieces.push(part);
-          this.consume(file, Buffer.concat(pieces, lineLength), lineStart < file.historicalEnd);
+          this.consume(file, Buffer.concat(pieces, lineLength), lineStart < file.historicalEnd, batch);
           file.offset = position + i + 1;
           lineStart = file.offset;
           pieces = []; lineLength = 0; start = i + 1;
@@ -134,11 +142,12 @@ export class RolloutReader implements MetadataReader {
     } finally { await handle.close(); }
   }
 
-  private consume(file: FileState, line: Buffer, historical: boolean): void {
+  private consume(file: FileState, line: Buffer, historical: boolean, batch: RolloutActivityBatch): void {
     let record: unknown;
     try { record = JSON.parse(line.toString('utf8')); } catch { throw new Error('Invalid rollout line.'); }
     if (!obj(record) || !obj(record.payload)) return;
     const payload = record.payload;
+    if (this.onActivityBatch) batch.add(file.id, record, historical);
     if (record.type === 'session_meta') {
       const id = str(payload.id), cwd = str(payload.cwd);
       if (!id || !cwd || (file.id && (file.id !== id || canonicalizeCwd(file.cwd) !== canonicalizeCwd(cwd) || file.parent !== str(payload.parent_thread_id)))) throw new Error('Invalid session metadata.');
