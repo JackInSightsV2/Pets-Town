@@ -17,7 +17,8 @@
     "build:chatgpt": "tsx scripts/build-chatgpt.ts",
     "package:chatgpt": "tsx scripts/package-chatgpt.ts",
     "test:chatgpt": "tsx --test src/chatgpt/*.test.ts",
-    "test:chatgpt:browser": "npm run build:chatgpt && playwright test --config tests/browser/chatgpt.config.ts"
+    "test:chatgpt:browser": "npm run build:chatgpt && playwright test --config tests/browser/chatgpt.config.ts",
+    "check:chatgpt:plugin": "tsx scripts/check-chatgpt-plugin.ts"
   },
   "engines": {
     "node": ">=22.12.0"

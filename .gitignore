@@ -11,3 +11,4 @@ dist-chatgpt/
 plugins/petstown/server.mjs
 plugins/petstown/office.html
 plugins/petstown/mcp.json
+plugins/petstown/.mcp.json

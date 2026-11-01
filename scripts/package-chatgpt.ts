@@ -14,11 +14,12 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const target = resolve(root, 'plugins/petstown');
 await mkdir(target, { recursive: true });
 for (const file of ['server.mjs', 'office.html']) await copyFile(resolve(root, 'dist-chatgpt', file), resolve(target, file));
-// Machine-specific config is generated and ignored by Git; installed cache is self-contained.
-await writeFile(resolve(target, 'mcp.json'), JSON.stringify({
-  $schema: 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json',
+// Machine-specific config is generated and ignored by Git. The installed Desktop
+// loader discovers .mcp.json through .codex-plugin/plugin.json. A portable root
+// plugin.json shadows this declaration on Desktop 26.1027, yielding zero servers.
+await writeFile(resolve(target, '.mcp.json'), JSON.stringify({
   mcpServers: { petstown: {
-    type: 'stdio', command: process.execPath, args: ['${PLUGIN_ROOT}/server.mjs'], cwd: '${PLUGIN_ROOT}',
+    command: process.execPath, args: ['./server.mjs'], cwd: '.',
     env: { PETSTOWN_METADATA_CWDS: JSON.stringify(scope),
       ...(process.env.PETSTOWN_METADATA_SOCKET ? { PETSTOWN_METADATA_SOCKET: process.env.PETSTOWN_METADATA_SOCKET } : {}) },
   } },

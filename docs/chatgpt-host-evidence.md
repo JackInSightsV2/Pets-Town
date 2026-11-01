@@ -100,3 +100,13 @@ Therefore an MCP wrapper alone cannot satisfy #45's real reply requirement. Keep
 - JEV remains disabled; its advisory review is unavailable.
 
 The current conversation has no newly loaded PetsTown tools. A new local conversation is required for the next actual-host test; no app restart was performed.
+
+## Desktop discovery correction — 0.1.1
+
+The user’s new conversation could mention PetsTown but could not call its tools. A read-only `plugin/read` request against the running desktop returned installed/enabled **true** and `mcpServers: []`. No PetsTown startup attempt appeared in the desktop log.
+
+A controlled packaging comparison established that adding a compatibility overlay alongside root `plugin.json` still produced zero servers. Removing the portable root manifest and using `.codex-plugin/plugin.json` → `.mcp.json` produced `mcpServers: ["petstown"]`. The final package uses that compatibility layout with plugin-relative launch paths, matching the bundled local plugins. This supersedes the initial portable-layout recommendation above for the tested desktop build.
+
+Version **0.1.1** was installed through the running desktop’s `plugin/install` API. Its `mcpServerStatus/list` now discovers `show_office`, `refresh_office`, `inspect_agent`, and `ui://petstown/office-v1.html`; `toolsError` is null. `npm run check:chatgpt:plugin` preserves this real-host discovery check. The earlier direct SDK smoke tests did not test host loading and therefore missed this defect.
+
+Actual in-chat rendering still requires a fresh invocation. Server discovery is now verified through the host, independently of visual acceptance.

@@ -13,9 +13,12 @@ npm run package:chatgpt -- --project /absolute/path/to/project
 codex plugin marketplace add /absolute/path/to/PetsTown
 codex plugin add petstown@petstown-local --json
 codex plugin list --marketplace petstown-local --json
+npm run check:chatgpt:plugin
 ```
 
-Repeat `--project` for each explicitly allowed directory. Matching is exact, including normalization; parents do not include children. The generated `plugins/petstown/mcp.json` pins those directories and the packaging Node executable. It is machine-specific and ignored by Git. Set `PETSTOWN_METADATA_SOCKET` during packaging only if the existing daemon uses a nondefault socket. This source requires the existing Unix Codex control socket; it does not attach to a Windows stdio runtime.
+Repeat `--project` for each explicitly allowed directory. Matching is exact, including normalization; parents do not include children. The generated `plugins/petstown/.mcp.json` pins those directories and the packaging Node executable. It is machine-specific and ignored by Git. Set `PETSTOWN_METADATA_SOCKET` during packaging only if the existing daemon uses a nondefault socket. This source requires the existing Unix Codex control socket; it does not attach to a Windows stdio runtime.
+
+The compatibility manifest is `.codex-plugin/plugin.json`, pointing to `.mcp.json`. Do not add a portable root `plugin.json`: Desktop 26.1027 recognises its identity but shadows the compatibility MCP declaration, reporting zero servers. The discovery check above exercises the running desktop and catches this failure; a direct SDK smoke test does not.
 
 The generated package contains the bundled server and self-contained office HTML. It runs from the installed plugin cache without dependencies on repository source paths. The genuine pet sprites load from their approved OpenAI CDN URLs. A CDN failure keeps the asset failure explicit.
 

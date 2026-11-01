@@ -1,6 +1,0 @@
-{
-  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-  "name": "petstown",
-  "version": "0.1.0",
-  "description": "See your existing Codex agents as a live office inside the conversation. Read-only, scoped to explicitly configured local projects."
-}

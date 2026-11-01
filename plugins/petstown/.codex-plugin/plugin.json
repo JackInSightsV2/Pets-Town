@@ -1,0 +1,16 @@
+{
+  "name": "petstown",
+  "version": "0.1.1",
+  "description": "See your existing Codex agents as a live office inside the conversation. Read-only, scoped to explicitly configured local projects.",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "PetsTown",
+    "shortDescription": "See your existing Codex team in a live office",
+    "defaultPrompt": [
+      "Show my team"
+    ],
+    "capabilities": [
+      "Read"
+    ]
+  }
+}
