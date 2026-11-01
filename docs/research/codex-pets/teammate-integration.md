@@ -59,3 +59,7 @@ Lane A can select an agent through the documented petstown:select-agent CustomEv
 ## Reconcile before integrating
 
 Inspect the latest PR/branch, source types and Track C handoff. When the scaffold merges, rebase/reconcile normally and run its existing focused checks plus the adapter's real proof. Keep fixtures visibly labelled. Do not claim #1/#3 live acceptance from the PR author's fixture results.
+
+## Newer observer probe
+
+During final review PR #10 advanced to `62bc08b6336eac23e9fd29e4efef68a23b6e07f4` and added [tests/manual/codex-metadata-adapter.ts](https://github.com/JackInSightsV2/Pets-Town/blob/62bc08b6336eac23e9fd29e4efef68a23b6e07f4/tests/manual/codex-metadata-adapter.ts). An independent source reviewer found a two-second metadata polling adapter against the existing daemon, with handoffs and replies explicitly unsupported. The #1 session should evaluate and reuse this probe before building another observer. Its presence is not a passed live test; inspect the latest head and record actual runtime evidence.

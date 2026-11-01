@@ -35,7 +35,7 @@ Do not duplicate lane A's scene work or JackInSightsV2's #3 panel/server work. #
 
 ## Monitor and reconcile
 
-Check for the existing PetsTown integration watch before creating any monitor. Reuse its meaningful updates if accessible. It checks every five minutes through 17:30 London today. If unavailable, establish one bounded watch for the remaining hackathon rather than silently assuming monitoring exists.
+Check for the existing PetsTown integration watch before creating any monitor. Reuse its meaningful updates if accessible. It checks every five minutes through 17:30 London today. If you cannot inspect the existing watch, ask for its automation handle; unknown or inaccessible state is not evidence that the watch is absent. Do not create a second monitor merely because a name lookup is unavailable.
 
 Inspect main changes, open PRs, check failures, issue claims and contract changes. Also reconcile immediately before integrating a dependency or recommending a merge. Keep unchanged checks quiet.
 
