@@ -30,4 +30,3 @@ Fixtures cover ownership, typed IDs, immutable snapshots, replay ordering, stale
 Verified: 26/26 focused tests passed (`npx tsx --test src/codex/requests/*.test.ts`); `npm run typecheck` passed. The broader `npm test` run passed 50/51 tests. Its existing static-file server test failed before its assertion because Windows refused symlink creation with EPERM; that test and server were not modified.
 
 Owner: Alex/getmateri. Chat: `01a19758-8403-7640-86ac-49e05ca8fa3e`, local Windows host. Branch: `codex/s7-request-routing`. Owned paths: `src/codex/requests/**` and this note. Base main: `17cce0a0211d79f83edfd421e1a8f33e45cabca8`.
-

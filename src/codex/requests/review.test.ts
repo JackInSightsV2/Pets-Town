@@ -78,4 +78,3 @@ test('stale revision cannot submit; ambiguous delivery cannot be retried with an
   assert.equal(beginResponse(uncertain, command(uncertain, { idempotencyKey: 'retry' })).outcome.status, 'duplicate');
   assert.equal(needsAttention(uncertain), true);
 });
-
