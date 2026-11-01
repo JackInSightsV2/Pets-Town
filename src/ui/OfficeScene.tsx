@@ -1,10 +1,12 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { OfficeAgent, OfficeSnapshot } from '../shared/contract';
 import type { Meeting, MeetingToken } from '../office/handoffs/meeting-queue';
+import { createOfficeLayout, DEFAULT_OFFICE_GEOMETRY, type OfficeGeometry } from '../office/layout';
 import officeBackground from '../../assets/office/office-v1.png';
 import { attentionFor, nativeAssetFor } from './view-model';
 import { NativePet } from './NativePet';
 import './handoffs.css';
+import './layout.css';
 
 export interface OfficeSceneProps {
   snapshot: OfficeSnapshot | null;
@@ -14,23 +16,21 @@ export interface OfficeSceneProps {
   meeting?: Meeting | null;
   onMeetingComplete?(token: MeetingToken): void;
   hiddenHandoffCount?: number;
+  geometry?: Partial<OfficeGeometry>;
 }
 
 type MeetingPhase = 'approaching' | 'exchanging' | 'returning' | 'complete';
 const WALK_MS = 1100;
 const EXCHANGE_MS = 4000;
-const HOME_POINTS = [[24, 27], [71, 31], [24, 67], [71, 69], [12, 37], [87, 45], [46, 32], [55, 71]];
-
-/** Identity-only anchors remain stable when another pet hides or the roster reorders. */
-function homePoint(agentId: string) {
-  let hash = 2166136261;
-  for (const character of agentId) hash = Math.imul(hash ^ character.charCodeAt(0), 16777619) >>> 0;
-  const anchor = HOME_POINTS[hash % HOME_POINTS.length];
-  return [anchor[0] + ((hash >>> 4) % 5 - 2), anchor[1] + ((hash >>> 8) % 5 - 2)];
-}
-
 /** Replaceable scene boundary: the renderer only observes snapshots and reports selection. */
-export function OfficeScene({ snapshot, selectedAgentId, visibleAgents, onSelectAgent, meeting = null, onMeetingComplete, hiddenHandoffCount = 0 }: OfficeSceneProps) {
+export function OfficeScene({ snapshot, selectedAgentId, visibleAgents, onSelectAgent, meeting = null, onMeetingComplete, hiddenHandoffCount = 0, geometry }: OfficeSceneProps) {
+  const geometryKey = JSON.stringify(geometry ?? {});
+  const allocator = useRef<{ key: string; mapper: ReturnType<typeof createOfficeLayout> } | null>(null);
+  if (!allocator.current || allocator.current.key !== geometryKey) allocator.current = { key: geometryKey, mapper: createOfficeLayout(geometry) };
+  // Map source membership, never the visibility-filtered view. Hidden identities
+  // retain their homes while joins receive fresh slots from the shared mapper.
+  const layout = allocator.current.mapper.map(snapshot ?? { agents: [], projects: [] });
+  const artworkCanvas = geometry?.canvas ?? DEFAULT_OFFICE_GEOMETRY.canvas;
   const nativeAgents = snapshot ? visibleAgents.filter(agent => agent.runtimeState !== 'closed' && nativeAssetFor(agent, snapshot.petAssets)) : [];
   const state = snapshot?.presentation.state ?? 'ready';
   const sessionId = snapshot?.officeSessionId ?? '';
@@ -82,31 +82,45 @@ export function OfficeScene({ snapshot, selectedAgentId, visibleAgents, onSelect
   const atCooler = phase === 'approaching' || phase === 'exchanging';
   const from = visibleAgents.find(agent => agent.agentId === meeting?.handoff.fromAgentId);
   const to = visibleAgents.find(agent => agent.agentId === meeting?.handoff.toAgentId);
-  return <div className="office-scene" data-testid="office-scene" data-presentation={state} data-meeting={activeMeeting?.handoff.handoffId ?? ''} data-meeting-phase={phase} data-reduced-motion={reducedMotion} aria-label="Office scene">
-    <img className="office-background" src={officeBackground} alt="An open-plan office with four desk areas, a central gathering rug, reading corners and sofas" />
-    <div className="scene-grain" />
+  const cooler = layout.waterCooler;
+  return <div className="office-scene mapped-office" data-testid="office-scene" data-presentation={state} data-meeting={activeMeeting?.handoff.handoffId ?? ''} data-meeting-phase={phase} data-reduced-motion={reducedMotion} aria-label="Office scene">
+    <div className="office-map-viewport" data-testid="office-map-viewport" tabIndex={0} role="region" aria-label="Shared office map. Scroll to explore project areas.">
+      <div className="office-map-surface" data-testid="office-map-surface" style={{ width: layout.width, height: layout.height }}>
+        <img className="office-background office-map-artwork" src={officeBackground} style={{ width: artworkCanvas.width, height: artworkCanvas.height }} alt="One open-plan office with desk areas, a central gathering rug, reading corners and sofas" />
+        <div className="scene-grain" />
+        {layout.areas.map((area, index) => {
+          const project = snapshot?.projects.find(project => project.projectId === area.projectId);
+          const name = project?.displayName ?? `Project ${area.projectId}`;
+          const firstArea = layout.areas.find(candidate => candidate.projectId === area.projectId) === area;
+          return <div key={`${area.projectId}:${area.overflow}`} className={`office-project-area project-area-color-${index % 4} ${area.overflow ? 'is-overflow-area' : ''}`} data-testid={firstArea ? `project-area-${area.projectId}` : `project-overflow-${area.projectId}`} data-project-id={area.projectId} data-overflow={area.overflow} style={{ left: area.x, top: area.y, width: area.width, height: area.height }}>
+            <span className="office-project-label" data-testid={firstArea ? `project-label-${area.projectId}` : `project-overflow-label-${area.projectId}`} title={name}><span className="office-project-marker" />{name}{!firstArea && <small>additional desks</small>}</span>
+          </div>;
+        })}
+        {activeMeeting && <div className="handoff-meeting" data-testid="handoff-meeting" data-handoff-id={activeMeeting.handoff.handoffId} data-phase={phase} style={{ left: (cooler[0].x + cooler[1].x) / 2, top: Math.max(48, Math.min(cooler[0].y, cooler[1].y) - 168) }}>
+          <span className="handoff-location">WATER COOLER</span>
+          {phase === 'exchanging' && <div className="handoff-bubble" role="status"><span className="handoff-participants">{from?.displayName} <span aria-hidden="true">→</span> {to?.displayName}</span><p data-testid="handoff-summary">{activeMeeting.handoff.summary || 'Handoff observed; summary unavailable from this source.'}</p></div>}
+        </div>}
+        {nativeAgents.map(agent => {
+          const asset = nativeAssetFor(agent, snapshot!.petAssets)!;
+          const home = layout.homes.get(agent.agentId);
+          if (!home) return null;
+          const participantIndex = activeMeeting ? pair.indexOf(agent.agentId) : -1;
+          const point = participantIndex !== -1 && atCooler ? cooler[participantIndex] : home;
+          return <button key={agent.agentId} className={`scene-agent ${selectedAgentId === agent.agentId ? 'is-selected' : ''}`} data-testid={`scene-agent-${agent.agentId}`} data-project-id={agent.projectId} data-meeting-participant={participantIndex !== -1} data-location={participantIndex !== -1 && atCooler ? 'water-cooler' : 'home'} data-home-left={`${home.x}px`} data-home-top={`${home.y}px`} aria-label={`Inspect ${agent.displayName}`} aria-pressed={selectedAgentId === agent.agentId} style={{ left: point.x, top: point.y }} onClick={() => onSelectAgent(agent.agentId)}>
+            {attentionFor(agent, snapshot!).count > 0 && <span className="scene-attention" aria-label="Unresolved request">!</span>}
+            <NativePet asset={asset} state={agent.runtimeState} />
+            <span className="scene-agent-label">{agent.displayName}</span>
+          </button>;
+        })}
+      </div>
+    </div>
     <div className="scene-floor-tag"><span /> THE SHARED OFFICE <span className="floor-separator">/</span> FLOOR 01</div>
     {hiddenHandoffCount > 0 && <div className="hidden-handoff-count" data-testid="hidden-handoff-count" role="status">{hiddenHandoffCount} {hiddenHandoffCount === 1 ? 'handoff involves' : 'handoffs involve'} hidden pets</div>}
-    {activeMeeting && <div className="handoff-meeting" data-testid="handoff-meeting" data-handoff-id={activeMeeting.handoff.handoffId} data-phase={phase}>
-      <span className="handoff-location">WATER COOLER</span>
-      {phase === 'exchanging' && <div className="handoff-bubble" role="status"><span className="handoff-participants">{from?.displayName} <span aria-hidden="true">→</span> {to?.displayName}</span><p data-testid="handoff-summary">{activeMeeting.handoff.summary || 'Handoff observed; summary unavailable from this source.'}</p></div>}
-    </div>}
-    {nativeAgents.map(agent => {
-      const asset = nativeAssetFor(agent, snapshot!.petAssets)!;
-      const home = homePoint(agent.agentId);
-      const participantIndex = activeMeeting ? pair.indexOf(agent.agentId) : -1;
-      const point = participantIndex !== -1 && atCooler ? [participantIndex === 0 ? 48 : 59, 36] : home;
-      return <button key={agent.agentId} className={`scene-agent ${selectedAgentId === agent.agentId ? 'is-selected' : ''}`} data-testid={`scene-agent-${agent.agentId}`} data-meeting-participant={participantIndex !== -1} data-location={participantIndex !== -1 && atCooler ? 'water-cooler' : 'home'} data-home-left={`${home[0]}%`} data-home-top={`${home[1]}%`} aria-label={`Inspect ${agent.displayName}`} aria-pressed={selectedAgentId === agent.agentId} style={{ left: `${point[0]}%`, top: `${point[1]}%` }} onClick={() => onSelectAgent(agent.agentId)}>
-        {attentionFor(agent, snapshot!).count > 0 && <span className="scene-attention" aria-label="Unresolved request">!</span>}
-        <NativePet asset={asset} state={agent.runtimeState} />
-        <span className="scene-agent-label">{agent.displayName}</span>
-      </button>;
-    })}
     {nativeAgents.length === 0 && <div className="scene-empty" data-testid="native-pet-empty-state">
       <span className="eyebrow">THE SPACE IS READY</span>
       <strong>{snapshot?.agents.length ? 'Your agents are in the roster.' : 'A place for your working agents.'}</strong>
-      <p>{snapshot?.agents.length ? 'Native pet artwork is not available for these agents yet. Select an agent below to inspect its observed activity.' : 'Connected Codex agents will appear here when a supported source is available.'}</p>
+      <p>{snapshot?.agents.length ? visibleAgents.length ? 'Native pet artwork is not available for these agents yet. Select an agent below to inspect its observed activity.' : 'The current visibility settings hide these pets. Their work continues in Codex.' : 'Connected Codex agents will appear here when a supported source is available.'}</p>
     </div>}
-    <div className="scene-caption"><span className="scene-caption-dot" /> {nativeAgents.length ? 'Pet assets: ChatGPT / Codex' : 'Office environment · native pets only'}<span>Presentation never pauses agent work</span></div>
+    <div className="scene-caption"><span className="scene-caption-dot" /> {nativeAgents.length ? 'Pet assets: ChatGPT / Codex' : 'Office environment · native pets only'}<span>Scroll to explore project areas</span></div>
   </div>;
 }
