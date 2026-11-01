@@ -153,18 +153,10 @@ export function OfficeScene({ snapshot, selectedAgentId, visibleAgents, onSelect
   const worldWidth = Math.max(layout.width, ...placed.map(pet => pet.point.x + 60));
   const worldHeight = Math.max(layout.height, ...placed.map(pet => pet.point.y + 60));
   return <div className="office-scene mapped-office" data-testid="office-scene" data-presentation={state} data-meeting={activeMeeting?.handoff.handoffId ?? ''} data-meeting-phase={phase} data-reduced-motion={reducedMotion} aria-label="Office scene">
-    <div ref={viewport} className="office-map-viewport" data-testid="office-map-viewport" tabIndex={0} role="region" aria-label="Shared office map. Scroll to explore project areas.">
+    <div ref={viewport} className="office-map-viewport" data-testid="office-map-viewport" tabIndex={0} role="region" aria-label="Shared office map. Scroll to explore the office.">
       <div className="office-map-surface" data-testid="office-map-surface" style={{ width: worldWidth, height: worldHeight }}>
         <img className="office-background office-map-artwork" src={officeBackground} style={{ width: artworkCanvas.width, height: artworkCanvas.height }} alt="One open-plan office with desk areas, a central gathering rug, reading corners and sofas" />
         <div className="scene-grain" />
-        {layout.areas.map((area, index) => {
-          const project = snapshot?.projects.find(project => project.projectId === area.projectId);
-          const name = project?.displayName ?? `Project ${area.projectId}`;
-          const firstArea = layout.areas.find(candidate => candidate.projectId === area.projectId) === area;
-          return <div key={`${area.projectId}:${area.overflow}`} className={`office-project-area project-area-color-${index % 4} ${area.overflow ? 'is-overflow-area' : ''}`} data-testid={firstArea ? `project-area-${area.projectId}` : `project-overflow-${area.projectId}`} data-project-id={area.projectId} data-overflow={area.overflow} style={{ left: area.x, top: area.y, width: area.width, height: area.height }}>
-            <span className="office-project-label" data-testid={firstArea ? `project-label-${area.projectId}` : `project-overflow-label-${area.projectId}`} title={name}><span className="office-project-marker" />{name}{!firstArea && <small>additional desks</small>}</span>
-          </div>;
-        })}
         {activeMeeting && <div className="handoff-meeting" data-testid="handoff-meeting" data-handoff-id={activeMeeting.handoff.handoffId} data-phase={phase} style={{ left: (cooler[0].x + cooler[1].x) / 2, top: Math.max(48, Math.min(cooler[0].y, cooler[1].y) - 168) }}>
           <span className="handoff-location">WATER COOLER</span>
           {phase === 'exchanging' && <div className="handoff-bubble" role="status"><span className="handoff-participants">{from?.displayName} <span aria-hidden="true">→</span> {to?.displayName}</span><p data-testid="handoff-summary">{activeMeeting.handoff.summary || 'Handoff observed; summary unavailable from this source.'}</p></div>}
@@ -188,6 +180,6 @@ export function OfficeScene({ snapshot, selectedAgentId, visibleAgents, onSelect
       <strong>{snapshot?.agents.length ? 'Your agents are in the roster.' : 'A place for your working agents.'}</strong>
       <p>{snapshot?.agents.length ? visibleAgents.length ? 'Native pet artwork is not available for these agents yet. Select an agent below to inspect its observed activity.' : 'The current visibility settings hide these pets. Their work continues in Codex.' : 'Connected Codex agents will appear here when a supported source is available.'}</p>
     </div>}
-    <div className="scene-caption"><span className="scene-caption-dot" /> {nativeAgents.length ? 'Pet assets: ChatGPT / Codex' : 'Office environment · native pets only'}<span>Scroll to explore project areas</span></div>
+    <div className="scene-caption"><span className="scene-caption-dot" /> {nativeAgents.length ? 'Pet assets: ChatGPT / Codex' : 'Office environment · native pets only'}<span>Scroll to explore the office</span></div>
   </div>;
 }

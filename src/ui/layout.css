@@ -5,12 +5,6 @@
 .office-map-surface .office-map-artwork{position:absolute;left:0;top:0;display:block;max-width:none;object-fit:contain;object-position:left top;pointer-events:none}
 .office-map-surface .scene-grain{z-index:0;pointer-events:none}
 .office-scene.mapped-office .scene-floor-tag,.office-scene.mapped-office>.scene-caption{z-index:9;pointer-events:none}
-.office-project-area{position:absolute;border:1px dashed #eef0d8b0;background:#f1f2d80b;border-radius:9px;pointer-events:none;z-index:1;--project-accent:#596e66}
-.office-project-area.project-area-color-1{--project-accent:#985b43}.office-project-area.project-area-color-2{--project-accent:#4f6f87}.office-project-area.project-area-color-3{--project-accent:#82723d}
-.office-project-area.is-overflow-area{background:#fff8df24;border-color:#9e805a85}
-.office-project-label{display:flex;align-items:center;gap:6px;position:absolute;left:9px;top:-28px;max-width:calc(100% - 18px);padding:5px 8px;background:#fffbeded;border:1px solid #cbbd9c;border-radius:4px;color:#59614c;font-size:9px;font-weight:750;line-height:1.4;box-shadow:0 2px 4px #50432c15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.office-project-marker{display:block;width:6px;height:6px;border-radius:2px;background:var(--project-accent);flex:none}
-.office-project-label small{font-size:7px;font-weight:500;color:#9b8d71;padding-left:3px;white-space:nowrap}
 .office-scene.mapped-office .scene-agent{width:96px;min-width:0;padding:0 3px 5px;z-index:3;scroll-margin:60px 25px}
 .office-scene.mapped-office .scene-agent[data-meeting-participant="true"]{z-index:4}
 .office-scene.mapped-office .scene-agent .native-pet{transform:none;margin:0}
