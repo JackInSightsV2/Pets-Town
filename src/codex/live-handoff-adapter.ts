@@ -2,10 +2,10 @@
 import { createAdapter as createMetadataAdapter } from './metadata-adapter.js';
 import { createHandoffHistoryAdapter } from './handoffs/history-adapter.js';
 import { createMacHistoryReader } from './handoffs/mac-history-reader.js';
-import type { OfficeAgent } from '../shared/contract.js';
+import { unsupported, type OfficeAgent } from '../shared/contract.js';
 
-export async function createAdapter() {
-  const base = await createMetadataAdapter();
+export async function createAdapter(options: { createBase?: typeof createMetadataAdapter; createReader?: typeof createMacHistoryReader } = {}) {
+  const base = await (options.createBase ?? createMetadataAdapter)();
   const allowed = new Set<string>();
   const observe = (agent: OfficeAgent) => {
     if (['unknown', 'closed', 'error'].includes(agent.runtimeState)) allowed.delete(agent.agentId);
@@ -24,7 +24,21 @@ export async function createAdapter() {
   });
   let reader: Awaited<ReturnType<typeof createMacHistoryReader>> | undefined;
   try {
-    reader = await createMacHistoryReader({ isAllowed: id => allowed.has(id) });
+    reader = await (options.createReader ?? createMacHistoryReader)({ isAllowed: id => allowed.has(id) });
+  } catch {
+    // The optional handoff socket can fail independently of the metadata observer.
+    unsubscribe();
+    return {
+      async initialSnapshot() {
+        const current = await base.initialSnapshot();
+        return { ...current, capabilities: { ...current.capabilities,
+          observeHandoffs: unsupported('Mac handoff reader could not connect or verify the runtime; metadata remains available.') } };
+      },
+      subscribe: base.subscribe.bind(base),
+      stop: base.stop.bind(base),
+    };
+  }
+  try {
     const adapter = await createHandoffHistoryAdapter({ base, reader,
       sourceNamespace: 'codex-0.166.0-subAgentActivity-interacted',
       // Exact release receipt/history projection audited in docs/evidence/codex-0166-handoff-source.md.
