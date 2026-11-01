@@ -17,10 +17,10 @@ export class RolloutActivityBatch {
   constructor(private readonly limit = 10_000, private readonly budget?: { count: number; limit: number }) {
     if (!Number.isSafeInteger(limit) || limit < 1) throw new Error('Invalid activity batch limit.');
   }
-  add(threadId: string | undefined, event: unknown, history: boolean): void {
+  add(threadId: string | undefined, turnId: string | undefined, event: unknown, history: boolean): void {
     if (this.failed || !id(threadId) || !object(event) || event.type !== 'event_msg' || !object(event.payload)) return;
     const p = event.payload;
-    if (p.type !== 'item_completed' || p.thread_id !== threadId || !id(p.turn_id) || !object(p.item)
+    if (p.type !== 'item_completed' || p.thread_id !== threadId || !id(turnId) || p.turn_id !== turnId || !object(p.item)
       || p.item.type !== 'CommandExecution' || !id(p.item.id) || (p.item.status !== 'completed' && p.item.status !== 'failed')) return;
     if (this.candidates.length >= this.limit || (this.budget && this.budget.count >= this.budget.limit)) { this.failed = true; this.candidates.length = 0; return; }
     if (this.budget) this.budget.count++;

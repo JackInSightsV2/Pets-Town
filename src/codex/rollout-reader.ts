@@ -147,7 +147,7 @@ export class RolloutReader implements MetadataReader {
     try { record = JSON.parse(line.toString('utf8')); } catch { throw new Error('Invalid rollout line.'); }
     if (!obj(record) || !obj(record.payload)) return;
     const payload = record.payload;
-    if (this.onActivityBatch) batch.add(file.id, record, historical);
+    if (this.onActivityBatch) batch.add(file.id, file.turn, record, historical);
     if (record.type === 'session_meta') {
       const id = str(payload.id), cwd = str(payload.cwd);
       if (!id || !cwd || (file.id && (file.id !== id || canonicalizeCwd(file.cwd) !== canonicalizeCwd(cwd) || file.parent !== str(payload.parent_thread_id)))) throw new Error('Invalid session metadata.');

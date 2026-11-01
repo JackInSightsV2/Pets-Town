@@ -1,0 +1,42 @@
+# Reconciled delivery status — 2026-11-01
+
+This record reconciles GitHub issues, merged implementation and recorded acceptance evidence. The integration brings PRs #28, #32, #33, #35, #36 and #37 onto main. PR #31 is superseded by #30 and must not be merged. Earlier merge holds in PR descriptions are superseded by the user's instruction to reconcile and merge.
+
+## Acceptance status
+
+| Slice | Status | Delivered | Remaining acceptance |
+| --- | --- | --- | --- |
+| #1 Live native pets | In progress; foundation implemented | Passive Mac observation, native assets/animation, identity and activity; Windows observer groundwork | Explicit launch/observe/close non-interference record and consolidated sanitized trace checklist |
+| #2 Office choreography | In progress | Live arrivals, standup, desks, idle rest, reset/skip | Detailed activity locations, verified completion celebration, final prop/geometry/path review |
+| #3 Inspection | In progress | Live selection, task/activity, missing-data/connection distinctions; Open chat action | Exact real pending request and original-client resolution; native deep-link activation |
+| #4 Handoff meetings | In progress; real source path recorded | Real correlated message drives pair meeting/return; queue, cancellation and replay checks | Final environment composition with #2 |
+| #5 Project/subagent mapping | Closed | Stable allocation, groups, overflow and hidden attention | No new gate; #33 deliberately removes area labels/outlines while retaining allocation and inspector project identity |
+| #6 Resilient demo | In progress | Launcher/reuse, live loop/runbook, Mac diagnostic helper | Teammate launch, final environment, timed 90-second rehearsal and full live failure/recovery checks |
+| #7 In-office responses | In progress; capability blocked | Correlation groundwork and aggregate waiting-state diagnostic | Supported passive exact request access/ownership and real response proof; Open chat does not satisfy this |
+| #8 Voice | Open; stretch | No implementation | #7 checkpoint and live audio validation |
+| #9 Computer view | Open; stretch | No implementation | #8 checkpoint and supported agent/view association |
+
+Only #5 is accepted closed: 1/9 slices (11%, rounded down). This is an acceptance count, not a code-completion estimate. The numbered task records and GitHub checklists distinguish partial delivery from acceptance.
+
+## Evidence boundaries
+
+- [Live Mac loop](evidence/live-office-loop.md): four real agents, actual source-correlated message, meeting/return and no page errors on the verified Codex 0.166.0 runtime.
+- [Live movement](evidence/live-office-movement.md): four real pets through arrival/standup/home, idle rest and privacy-safe command inspection.
+- [Track C checkpoint](track-c.md): original live metadata/goal/launch-reuse evidence; older handoff limitations are superseded by the live loop above.
+- Official asset origin, 1536×1872 atlas and animation sequences are recorded in `src/shared/pets.ts`. Artwork is cached locally, not redistributed by this integration.
+- The Windows command adapter remains opt-in and has synthetic composition coverage; a live selected Windows session has not been verified.
+- The request probe observes aggregate flags only. Its 90-second sampling deadline begins after transport connection, closes an outstanding read and interrupts sleeps. It does not identify or resolve a request.
+- Handoff-reader failure preserves metadata but requires reopening the bridge. Automated replay checks do not establish automatic live reader recovery.
+- Family proximity (#37) and decorative check-ins (#36) are standalone, tested modules. Neither is wired to the scene; no visible feature completion is claimed.
+- Native chat links have browser attribute/selection coverage; actual operating-system navigation remains unverified.
+
+## Integration verification
+
+Against base `62e3b3a`, all six current branches merge without conflicts. Independent standards review found no actionable defects. Requirements review identified two issues, both fixed and re-reviewed:
+
+1. Windows command activity now compares thread and turn against independently observed reader context; missing/mismatched turns are ignored. A composed-reader regression verifies a wrong-turn completion is suppressed while a matching completion is published.
+2. Waiting-state sampling now has a monotonic deadline with transport cleanup, including a blocked RPC and a sleeping sampler. Identity mismatches still fail explicitly.
+
+The combined build/typecheck and all 205 recursively discovered tests pass. All 10 browser tests pass on the integrated UI (synthetic data). The final fixes affect only observation/probe code, with focused and full unit reruns. The default `npm test` shell glob runs only 92 tests in this environment; reconciliation explicitly ran every `src/**/*.test.ts` recursively to include nested modules. Mac checker help and invalid-port behavior were exercised. JEV returned UNAVAILABLE and supplies no validation result.
+
+No new live Mac/Windows acceptance run or timed team rehearsal was performed during reconciliation. Existing recorded evidence is preserved separately from this integration's automated checks.

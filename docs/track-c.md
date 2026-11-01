@@ -1,6 +1,6 @@
 # Track C integration handoff
 
-This branch supplies the local HTTP/SSE bridge, browser office, immutable client store, inspection panel, presentation controls and launch scripts. Normal launch selects the scoped read-only Codex metadata observer; explicit fixtures and custom adapters are also supported. Live metadata and active-goal inspection have been verified on the demo Mac. Real request resolution and the integrated handoff demo remain unverified.
+This branch supplies the local HTTP/SSE bridge, browser office, immutable client store, inspection panel, presentation controls and launch scripts. Normal launch selects the scoped read-only Codex metadata observer; explicit fixtures and custom adapters are also supported. Live metadata and active-goal inspection have been verified on the demo Mac. Real request resolution remains unverified. The integrated real handoff and movement are now recorded in [live loop](evidence/live-office-loop.md) and [live movement](evidence/live-office-movement.md); see [current delivery status](delivery-status.md).
 
 Team ownership stays as recorded in the [delivery plan](../plan.md): lane A owns scene choreography and project layout; lane B owns live Codex observation, real handoffs and eventual replies; lane C owns the app shell, inspection and demo packaging. Use the [office contract](contracts/office-v1.md) when integrating across lanes.
 
@@ -48,7 +48,7 @@ The browser entrypoint uses `createHandoffStore` to route ordered source events 
 
 `App` supplies the IDs of visible pets to the controller and passes its active meeting into `OfficeScene`. The scene moves only the named pair, shows the source summary, returns them home and acknowledges the exact meeting token. Reset, hidden participants and agent failure cancel obsolete choreography. Hidden handoff counts remain visible without revealing hidden pets. Replies and request attention are independent of movement.
 
-This is a consumer of the shared `handoff.observed` contract. Lane B must still supply verified real source events with both agent IDs and stable correlation; the metadata-only adapter continues to report handoffs unsupported. Synthetic browser checks prove the UI path, not that native handoff observation works.
+This is a consumer of the shared `handoff.observed` contract. The explicit live-handoff adapter now supplies verified real source events with both agent IDs and stable correlation on the documented Mac runtime; the metadata-only adapter continues to report handoffs unsupported. Synthetic browser checks and the separate live-loop evidence establish different parts of this path.
 
 ## Development and acceptance evidence
 
@@ -68,7 +68,9 @@ For [#6 — integrated demo](../.claude/epics/petstown-hackathon/6.md), still ca
 - Tested commit/build, runtime, invocation, asset setup and evidence, followed by a known-working checkpoint and team acceptance on the demo Mac.
 - If plugin packaging is selected, actual installation and skill completion/invocation testing; copying plugin files is insufficient.
 
-## Acceptance checkpoint — 2026-11-01
+## Historical acceptance checkpoint — before PR #26
+
+The table below preserves the earlier checkpoint. The current state is in [delivery status](delivery-status.md); its handoff limitation was subsequently resolved by PR #26.
 
 | Requirement | Observed evidence | Remaining gate |
 | --- | --- | --- |
