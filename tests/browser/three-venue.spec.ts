@@ -1,6 +1,16 @@
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
+import { officialPets } from '../../src/shared/pets';
+
+test.beforeEach(async ({ page }) => {
+  await page.route('https://cdn.openai.com/**', async route => {
+    const pet = officialPets.find(asset => asset.imageUrl === route.request().url());
+    if (!pet) return route.abort();
+    await route.fulfill({ contentType: 'image/webp', headers: { 'Access-Control-Allow-Origin': '*' },
+      body: await readFile(`.cache/pets/${pet.assetId}.webp`) });
+  });
+});
 test("3D room uses native pets, existing inspection, camera controls and GLB export", async ({
   page,
 }) => {
@@ -87,6 +97,12 @@ test("3D pets complete an observed handoff and ignore its replay", async ({
     });
     expect(result.ok()).toBeTruthy();
   };
+  const baseline = await (await request.get('/api/office')).json();
+  for (const agent of baseline.agents) {
+    if (!['maple', 'willow'].includes(agent.agentId)) continue;
+    for (const requestId of agent.pendingRequestIds)
+      await emit('request.resolved', agent.agentId, { requestId, reason: 'Synthetic handoff fixture setup' });
+  }
   for (const id of ["maple", "willow"])
     await emit("agent.state.changed", id, { runtimeState: "working" });
   await emit("connection.changed", null, {
@@ -152,4 +168,24 @@ test('3D live idle and session-close observations show zz then play death once',
   } finally {
     await emit('agent.state.changed', 'maple', { runtimeState: 'working' });
   }
+});
+
+test('default demo adds eight varied local pets without changing the observed office', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const observedBefore = await (await request.get('/api/office')).json();
+  await page.goto('/');
+  const demos = page.locator('.venue-pet-label[data-demo="true"]');
+  await expect(page.getByTestId('demo-badge')).toHaveText('Demo · 8 simulated pets');
+  await expect(page.locator('.venue-pet-label[data-demo="true"][data-pet-load="loaded"]')).toHaveCount(8);
+  await page.getByTestId('scene-agent-petstown-demo:dewey').click();
+  await expect(page.getByTestId('demo-details')).toContainText('no real work is running');
+  await expect(page.getByTestId('agent-inspector')).toHaveCount(0);
+  await page.screenshot({ path: '/tmp/petstown-demo.png' });
+  await page.getByRole('button', { name: 'Demo on', exact: true }).click();
+  await expect(demos).toHaveCount(0);
+  await expect(page.getByTestId('scene-agent-maple')).toBeVisible();
+  const observedAfter = await (await request.get('/api/office')).json();
+  expect(observedAfter.agents.map((agent: { agentId: string }) => agent.agentId))
+    .toEqual(observedBefore.agents.map((agent: { agentId: string }) => agent.agentId));
+  expect(JSON.stringify(observedAfter)).not.toContain('petstown-demo:');
 });

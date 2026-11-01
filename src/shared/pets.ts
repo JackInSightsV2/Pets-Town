@@ -14,9 +14,9 @@ const animations: PetAsset['animations'] = {
   review: { row: 8, frames: 6, fps: 6 },
 };
 
-export const builtInPets: PetAsset[] = ['codex', 'dewey', 'hoots'].map((id) => ({
+export const officialPets: PetAsset[] = ['codex', 'dewey', 'hoots', 'fireball', 'rocky', 'seedy', 'stacky', 'bsod', 'null-signal'].map((id) => ({
   assetId: id,
-  name: id === 'codex' ? 'Codex' : id[0].toUpperCase() + id.slice(1),
+  name: id === 'codex' ? 'Codex' : id === 'bsod' ? 'BSOD' : id === 'null-signal' ? 'Null Signal' : id[0].toUpperCase() + id.slice(1),
   imageUrl: `https://cdn.openai.com/c6d7b0d0-3abf-40b5-9d0c-ecd2b9364692/${id}-spritesheet-v4.webp`,
   origin: 'chatgpt',
   width: 1536,
@@ -25,3 +25,7 @@ export const builtInPets: PetAsset[] = ['codex', 'dewey', 'hoots'].map((id) => (
   rows: 9,
   animations,
 }));
+
+// Keep existing observed-agent assignments stable as the demo catalog grows.
+export const builtInPets = officialPets.slice(0, 3);
+export const demoPets = officialPets.filter(pet => pet.assetId !== 'codex');

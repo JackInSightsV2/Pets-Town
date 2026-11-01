@@ -33,7 +33,7 @@ try {
   }
   const { data } = await call('mcpServerStatus/list', { serverName: 'petstown', detail: 'full' });
   const server = data.find((item: { name: string }) => item.name === 'petstown');
-  const expected = ['show_office', 'refresh_office', 'inspect_agent'];
+  const expected = ['show_office', 'celebrate', 'refresh_office', 'inspect_agent'];
   if (!server || server.toolsError || expected.some(name => !server.tools[name])
     || !server.resources.some((resource: { uri: string }) => resource.uri === 'ui://petstown/office-v2.html')) {
     throw new Error('Desktop could not discover all PetsTown tools and its office resource.');

@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { snapshot, agent } from '../../src/client/test-helpers';
-import { builtInPets } from '../../src/shared/pets';
+import { builtInPets, officialPets } from '../../src/shared/pets';
 import type { OfficeView } from '../../src/chatgpt/types';
 
 // This is a protocol simulator, not evidence of an installed ChatGPT integration.
@@ -45,7 +45,7 @@ async function mount(page: Page, modes = ['inline', 'fullscreen', 'pip']) {
   await page.route('https://petstown-host.test/', route => route.fulfill({ contentType: 'text/html', body: hostHtml }));
   await page.route('https://petstown-ui.test/', route => route.fulfill({ contentType: 'text/html', body: html }));
   await page.route('https://cdn.openai.com/**', async route => {
-    const pet = builtInPets.find(item => item.imageUrl === route.request().url());
+    const pet = officialPets.find(item => item.imageUrl === route.request().url());
     if (!pet) return route.abort();
     try { await route.fulfill({ contentType: 'image/webp', headers: { 'Access-Control-Allow-Origin': '*' }, body: await readFile(`.cache/pets/${pet.assetId}.webp`) }); }
     catch { await route.abort(); }
@@ -149,7 +149,7 @@ test('late refresh from a prior scope cannot replace the current office or model
   const frame = await mount(page);
   await frame.getByTestId('embedded-agent-maple').click();
   await page.evaluate(() => { (window as unknown as { deferRefresh: boolean }).deferRefresh = true; });
-  await frame.getByRole('button', { name: 'Refresh office' }).click();
+  // Capture the next automatic poll; clicking can wait behind that in-flight request.
   await expect.poll(() => page.evaluate(() => (window as unknown as { pending: unknown[] }).pending.length)).toBe(1);
   await page.evaluate(() => {
     const host = window as unknown as { hostResult: { _meta: { office: OfficeView } }; notify(method: string, params: unknown): void };
@@ -174,7 +174,7 @@ test('a new conversational selection wins over an older same-scope refresh', asy
   const frame = await mount(page);
   await frame.getByTestId('embedded-agent-maple').click();
   await page.evaluate(() => { (window as unknown as { deferRefresh: boolean }).deferRefresh = true; });
-  await frame.getByRole('button', { name: 'Refresh office' }).click();
+  // Capture the next automatic poll; clicking can wait behind that in-flight request.
   await expect.poll(() => page.evaluate(() => (window as unknown as { pending: unknown[] }).pending.length)).toBe(1);
   await page.evaluate(() => {
     const host = window as unknown as { hostResult: { _meta: { office: OfficeView } }; notify(method: string, params: unknown): void };
@@ -239,4 +239,109 @@ test('ordered refresh updates live state without replacing the embedded layout o
   })).toBe(0);
   await expect(frame.getByTestId('office-scene')).toHaveAttribute('data-renderer', 'three');
   await expect(frame.locator('.venue-render canvas')).toBeVisible();
+});
+
+test('eight demo pets load, rotate local activities, and never enter real observation context', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const requestedAssets: string[] = [];
+  page.on('request', request => { if (request.url().startsWith('https://cdn.openai.com/')) requestedAssets.push(request.url()); });
+  const frame = await mount(page);
+  await expect(frame.getByTestId('demo-badge')).toHaveText('Demo · 8 simulated pets');
+  const demos = frame.locator('.venue-pet-label[data-demo="true"]');
+  await expect(demos).toHaveCount(8);
+  await expect(frame.locator('.venue-pet-label[data-demo="true"][data-pet-load="loaded"]')).toHaveCount(8);
+  const demoIds = await demos.evaluateAll(elements => elements.map(element => element.getAttribute('data-testid')));
+  expect(new Set(demoIds).size).toBe(8);
+  for (const pet of officialPets.filter(pet => pet.assetId !== 'codex')) expect(requestedAssets).toContain(pet.imageUrl);
+
+  await frame.getByTestId('embedded-agent-maple').click();
+  await expect(frame.getByTestId('embedded-details')).toBeVisible();
+  const dewey = frame.getByTestId('scene-agent-petstown-demo:dewey');
+  await dewey.click();
+  await expect(frame.getByTestId('demo-details')).toContainText('Simulated teammate · no real work is running');
+  await expect(frame.getByTestId('embedded-details')).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => {
+    const contexts = (window as unknown as { contexts: { content: { text: string }[] }[] }).contexts;
+    return JSON.parse(contexts.at(-1)?.content[0].text ?? '{}').selection;
+  })).toBeNull();
+  const activity = await frame.getByTestId('demo-details').locator('p').innerText();
+  const position = await dewey.evaluate(element => (element as HTMLElement).style.transform);
+  await expect(frame.getByTestId('demo-details').locator('p')).not.toHaveText(activity, { timeout: 10_000 });
+  await expect.poll(() => dewey.evaluate(element => (element as HTMLElement).style.transform)).not.toBe(position);
+  const bridge = await page.evaluate(() => {
+    const host = window as unknown as { contexts: unknown[]; calls: { name: string; arguments: unknown }[]; messages: unknown[] };
+    return { contexts: host.contexts, calls: host.calls, messages: host.messages };
+  });
+  expect(JSON.stringify(bridge)).not.toContain('petstown-demo:');
+  expect(bridge.calls.every(call => call.name === 'refresh_office')).toBe(true);
+  expect(bridge.messages).toEqual([]);
+  await frame.getByTestId('embedded-office').screenshot({ path: '/tmp/petstown-demo-office.png' });
+
+  await frame.getByRole('button', { name: 'Demo on', exact: true }).click();
+  await expect(demos).toHaveCount(0);
+  await expect(frame.getByTestId('demo-details')).toHaveCount(0);
+  await expect(frame.getByTestId('demo-badge')).toHaveCount(0);
+  await expect(frame.getByTestId('scene-agent-maple')).toBeVisible();
+  await expect(frame.getByTestId('scene-agent-willow')).toBeVisible();
+  await expect(frame.getByRole('button', { name: 'Demo off', exact: true })).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('Celebrate runs a local arrival, work, confetti and exit sequence while real pets remain', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  const frame = await mount(page);
+  await page.clock.install();
+  const scene = frame.getByTestId('office-scene');
+  await frame.getByRole('button', { name: 'Celebrate', exact: true }).click();
+  await expect(scene).toHaveAttribute('data-celebration', 'entering');
+  await expect(frame.locator('.venue-pet-label[data-demo="true"]')).toHaveCount(8);
+  await expect(frame.getByRole('button', { name: 'Demo off', exact: true })).toHaveAttribute('aria-pressed', 'false');
+  await page.clock.fastForward(5100);
+  await expect(scene).toHaveAttribute('data-celebration', 'working');
+  await page.clock.fastForward(5000);
+  await expect(scene).toHaveAttribute('data-celebration', 'cheering');
+  await expect(frame.getByTestId('celebration-confetti')).toBeVisible();
+  await expect(frame.locator('.venue-confetti i').first()).toBeVisible();
+  await frame.getByTestId('embedded-office').screenshot({ path: '/tmp/petstown-celebration.png' });
+  await page.clock.fastForward(3000);
+  await expect(scene).toHaveAttribute('data-celebration', 'leaving');
+  await expect(frame.getByTestId('celebration-confetti')).toHaveCount(0);
+  await page.clock.fastForward(7000);
+  await expect(scene).toHaveAttribute('data-celebration', 'idle');
+  await expect(frame.locator('.venue-pet-label[data-demo="true"]')).toHaveCount(0);
+  await expect(frame.getByTestId('scene-agent-maple')).toBeVisible();
+  await expect(frame.getByTestId('scene-agent-willow')).toBeVisible();
+});
+
+test('conversation celebration IDs trigger once and refresh results cannot restart them', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const frame = await mount(page);
+  await page.clock.install();
+  const scene = frame.getByTestId('office-scene');
+  const notifyCelebration = async (id: string) => page.evaluate(id => {
+    const host = window as unknown as { hostResult: { _meta: { office: OfficeView } }; notify(method: string, params: unknown): void };
+    host.hostResult._meta.office.celebrationId = id;
+    host.notify('ui/notifications/tool-result', host.hostResult);
+  }, id);
+  await notifyCelebration('celebrate-command-1');
+  await expect(scene).toHaveAttribute('data-celebration', 'entering');
+  await page.clock.fastForward(5100);
+  await expect(scene).toHaveAttribute('data-celebration', 'working');
+  await notifyCelebration('celebrate-command-1');
+  await expect(scene).toHaveAttribute('data-celebration', 'working');
+  await page.evaluate(() => {
+    const host = window as unknown as { hostResult: { _meta: { office: OfficeView } } };
+    host.hostResult._meta.office.celebrationId = 'celebrate-command-2';
+  });
+  await frame.getByRole('button', { name: 'Refresh office' }).click();
+  await expect(scene).toHaveAttribute('data-celebration', 'working');
+  await notifyCelebration('celebrate-command-2');
+  await expect(scene).toHaveAttribute('data-celebration', 'entering');
+  await page.clock.fastForward(10100);
+  await expect(scene).toHaveAttribute('data-celebration', 'cheering');
+  await expect(frame.getByTestId('celebration-confetti')).toBeVisible();
+  await expect(frame.locator('.venue-confetti i').first()).not.toBeVisible();
+  await frame.getByRole('button', { name: 'Stop celebration', exact: true }).click();
+  await expect(scene).toHaveAttribute('data-celebration', 'idle');
+  await expect(frame.locator('.venue-pet-label[data-demo="true"]')).toHaveCount(0);
+  await expect(frame.getByTestId('embedded-agent-maple')).toBeVisible();
 });
