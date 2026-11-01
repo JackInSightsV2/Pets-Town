@@ -2,7 +2,7 @@
 
 A local ChatGPT plugin that shows your existing Codex agents as pets in a live office inside your conversation. Select **`@petstown`** and ask **“Show my team.”** Select a pet to inspect its observed task and activity.
 
-**Version 0.1.8:** a local, read-only office for existing Codex agents, available in a standalone browser or through a locally installed plugin. macOS observes an existing Unix daemon; Windows automatically reads existing session logs. Supported sources can supply activity, handoffs and turn lifecycle observations. Availability depends on your runtime and source; request replies remain unavailable. See [delivery status](docs/delivery-status.md) for verification limits.
+**Version 0.1.9:** a local, read-only office for existing Codex agents, available in a standalone browser or through a locally installed plugin. macOS observes an existing Unix daemon; Windows automatically reads existing session logs. Supported sources can supply activity, handoffs and turn lifecycle observations. Availability depends on your runtime and source; request replies remain unavailable. See [delivery status](docs/delivery-status.md) for verification limits.
 
 The default viewport is [Elliot’s interactive 3D venue](docs/interactive-3d-venue.md), with orbit, zoom, pet inspection and live lifecycle animations.
 

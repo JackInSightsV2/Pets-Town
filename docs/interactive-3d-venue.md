@@ -44,3 +44,5 @@ Unit checks cover placement, navigation and rendering geometry. Browser checks e
 Demo mode adds eight different built-in pet characters beside the real team. It is enabled initially for the busy-office preview and can be toggled off in the venue controls. Demo labels and details identify their simulated tasks; they cycle through working, reviewing, walking and breaks. These agents exist only in the rendered view: they never enter the observer, send instructions, or contribute simulated facts to ChatGPT context. Selecting one opens local demo details.
 
 Click **Celebrate**, or ask **@petstown celebrate** in a new plugin-enabled conversation, to play the one-shot demo: arrival, work, cheering with confetti, and departure. It uses simulated pets only and leaves the real team unchanged. Reduced motion replaces falling confetti with a static celebration.
+
+Pets share reserved floor positions across real, demo and celebration actors. Arrivals use separate entrance slots; walkers yield or reroute around occupied space rather than stacking at shared destinations.
