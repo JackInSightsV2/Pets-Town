@@ -139,5 +139,8 @@ export async function createOfficeServer(options: OfficeServerOptions = {}) {
   async function close() {if(stopped)return;stopped=true;clearInterval(heartbeat);clearTimeout(timer);unsubscribe();for(const response of clients) response.end();clients.clear();await new Promise<void>(done=>server.close(()=>done()));await adapter.stop();}
   try {await new Promise<void>((done,reject)=>{server.once('error',reject);server.listen(options.port??0,'127.0.0.1',()=>{server.off('error',reject);done();});});} catch(error) {await close();throw error;}
   const address=server.address();if(!address||typeof address==='string') throw new Error('Missing server address');
-  return {url:`http://127.0.0.1:${address.port}`,port:address.port,close};
+  return {url:`http://127.0.0.1:${address.port}`,port:address.port,
+    // Local host adapters can reuse the normalized state without an HTTP round trip.
+    // Always copy: consumers must never mutate the bridge or share its control token.
+    getSnapshot: () => structuredClone(snapshot), close};
 }

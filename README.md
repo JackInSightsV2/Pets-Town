@@ -2,6 +2,8 @@
 
 A browser office for existing Codex agents, launched from Codex CLI. Genuine ChatGPT/Codex pets make observed agent state visible.
 
+The [ChatGPT integration track](docs/chatgpt-integration.md) adds a local MCP plugin with an embedded office, pet selection context and host-supported display modes. Its read-only implementation and local protocol checks are separate from actual ChatGPT visual acceptance; agent replies remain unsupported. The existing browser launch below remains available.
+
 **Status:** the local bridge and browser office observe existing Codex agent metadata, show active goals when available, and support pet inspection, request tracking and handoff presentation. Normal launch attempts the built-in read-only observer. Live request and handoff observation and the timed target-Mac rehearsal remain acceptance gates; the app does not start Codex agents. See the [Track C handoff](docs/track-c.md) and [90-second demo runbook](docs/demo-runbook.md).
 
 ![PetsTown office environment](assets/office/office-v1.png)

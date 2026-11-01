@@ -1,0 +1,12 @@
+{
+  "name": "petstown-local",
+  "interface": { "displayName": "PetsTown development" },
+  "plugins": [
+    {
+      "name": "petstown",
+      "source": { "source": "local", "path": "./plugins/petstown" },
+      "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+      "category": "Productivity"
+    }
+  ]
+}
