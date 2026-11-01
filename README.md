@@ -1,55 +1,187 @@
 # PetsTown
 
-A browser office for existing Codex agents, launched from Codex CLI. Genuine ChatGPT/Codex pets make observed agent state visible.
+A local ChatGPT plugin that shows your existing Codex agents as pets in a live office inside your conversation. Select **`@petstown`** and ask **“Show my team.”** Select a pet to inspect its observed task and activity.
 
-The [ChatGPT integration track](docs/chatgpt-integration.md) adds a local MCP plugin with an embedded office, pet selection context and host-supported display modes. Its read-only implementation and local protocol checks are separate from actual ChatGPT visual acceptance; agent replies remain unsupported. The existing browser launch below remains available.
-
-**Status:** the local bridge and browser office observe existing Codex agent metadata, show active goals when available, and support pet inspection, request tracking and handoff presentation. Normal launch attempts the built-in read-only observer. Live request and handoff observation and the timed target-Mac rehearsal remain acceptance gates; the app does not start Codex agents. See the [Track C handoff](docs/track-c.md) and [90-second demo runbook](docs/demo-runbook.md).
+**Version 0.1.4:** a local, read-only office for existing Codex agents, available in a standalone browser or through a locally installed plugin. macOS observes an existing Unix daemon; Windows automatically reads existing session logs. Supported sources can supply activity, handoffs and turn lifecycle observations. Availability depends on your runtime and source; request replies remain unavailable. See [delivery status](docs/delivery-status.md) for verification limits.
 
 ![PetsTown office environment](assets/office/office-v1.png)
 
-## Run the app
+## Install the ChatGPT plugin
 
-Use Node.js 22.12 or later, from the repository root:
+Build and install the plugin on the computer where you use ChatGPT. You need a compatible local ChatGPT desktop host, Git, Node.js **22.12.0 or later** with npm, and the `codex` CLI. Node.js and Codex must be on your PATH. Internet access is required for dependencies and the official pet sprites.
 
 ```sh
+git clone https://github.com/JackInSightsV2/Pets-Town.git
+cd Pets-Town
+npm ci
+npm run build:chatgpt
+npm run package:chatgpt -- --project /absolute/path/to/your-project
+codex plugin marketplace add /absolute/path/to/Pets-Town
+codex plugin add petstown@petstown-local --json
+codex plugin list --marketplace petstown-local --json
+npm run check:chatgpt:plugin
+```
+
+Replace the project path with the exact working directory of your existing Codex sessions, and the marketplace path with the repository you cloned. Repeat `--project` for multiple projects; parent directories do not include their children. On Windows, use quoted paths such as `"C:/Users/you/projects/my-project"` and `"C:/Users/you/Pets-Town"`.
+
+Packaging writes a machine-specific, Git-ignored project configuration. Set any custom socket or rollout environment variables before packaging. Build and package separately on each computer.
+
+### Use it in ChatGPT
+
+1. Open a **new local ChatGPT conversation**.
+2. Select **`@petstown`** from the plugin selector.
+3. Ask **“Show my team.”**
+4. Select a pet to inspect its observed context.
+
+The desktop host starts the installed plugin server when needed. You do not need to run `npm run office` or keep a browser bridge open. Start your Codex work separately; the plugin observes existing sessions in the projects you configured.
+
+If the plugin is missing, check the installation with the commands above, restart the app when convenient, and open a new conversation. If the office is empty, confirm your sessions use the exact directories supplied to `--project`. The current integration runs locally; web-hosted access to your computer is not provided. Live Windows desktop acceptance remains an open verification item.
+
+### Update the plugin
+
+Preserve or commit local changes, then run from a clean checkout:
+
+```sh
+git pull --ff-only
+npm ci
+npm run build:chatgpt
+npm run package:chatgpt -- --project /absolute/path/to/your-project
+codex plugin add petstown@petstown-local --json
+npm run check:chatgpt:plugin
+```
+
+Use your actual project paths again. Open a new conversation after reinstalling; running conversations may retain the old plugin connection. See the [desktop integration guide](docs/chatgpt-integration.md) for host requirements and source configuration.
+
+## Optional: install the standalone browser office
+
+The standalone browser office is available for development and previews. These steps are optional and are not required for the ChatGPT plugin.
+
+### Requirements
+
+- Git.
+- Node.js **22.12.0 or later**, with npm. Check with `node --version` and `npm --version`.
+- System `curl` on your PATH, used to download the official pet artwork. Check with `curl --version` (use `curl.exe --version` in Windows PowerShell).
+- Internet access for npm dependencies and the pet asset download.
+- A modern browser. To observe real work, you also need existing local Codex sessions; PetsTown does not create agents.
+
+The browser office and synthetic preview run on Windows, macOS and Linux. On macOS/Linux the default live observer requires an existing Unix Codex daemon control socket. Windows automatically selects the session-log observer. Explicit rollout settings select session logs on either platform.
+
+### Download and build
+
+Run these commands in a terminal (PowerShell, bash or zsh):
+
+```sh
+git clone https://github.com/JackInSightsV2/Pets-Town.git
+cd Pets-Town
 npm ci
 npm run pets:fetch
 npm run build
-npm run office
 ```
 
-Normal launch opens `http://127.0.0.1:4317` and attempts to observe an **already running** local Codex daemon. Its default scope is the exact current working directory, normally this repository root. It shows loaded agent identities, runtime status and explicitly active goals when available. Item activity, request details and handoffs are unavailable through metadata polling. Connection failures are displayed; the launcher never starts agents or silently substitutes fixture data.
+The asset command caches three official pet sprite sheets in `.cache/pets`. Keep that cache local; do not commit or redistribute it. If the download fails, check system curl, network access and certificates. The app can fall back to the official CDN when the cache is missing.
 
-Keep the terminal open; Ctrl-C stops only the bridge it owns. Install dependencies and build on a fresh checkout or after relevant changes, rather than on every launch.
+## Run the standalone browser office
 
-Codex CLI can discover the repository-local `$office` skill through `/skills`.
+All commands below run from the cloned repository directory containing `package.json`.
 
-To include several project directories, supply an explicit allowlist:
+### Try the office without Codex
+
+```sh
+npm run office -- --fixture
+```
+
+This opens a clearly labelled **synthetic development office** at [http://127.0.0.1:4317](http://127.0.0.1:4317). It is useful for trying the UI without a running Codex session; the pets and activity in this mode are fixture data.
+
+Keep the terminal open while using the office. Press **Ctrl+C** to stop the bridge started by that terminal. Stop the fixture bridge before switching to live observation on the same port.
+
+### Observe existing Codex sessions on macOS or Linux
+
+Start your Codex work separately, then tell PetsTown which project directories to observe:
+
+```sh
+PETSTOWN_METADATA_CWDS='["/absolute/path/to/your-project"]' npm run office
+```
+
+Replace the example with the absolute working directory used by your Codex session. To watch several projects, include each directory in the JSON array:
 
 ```sh
 PETSTOWN_METADATA_CWDS='["/absolute/path/project-a","/absolute/path/project-b"]' npm run office
 ```
 
-`PETSTOWN_METADATA_CWDS` is a nonempty JSON array of absolute directories. Matching is exact after path normalization; listing a parent does not include its child directories. The default control socket is `$CODEX_HOME/app-server-control/app-server-control.sock`, or `~/.codex/app-server-control/app-server-control.sock` when `CODEX_HOME` is unset. `PETSTOWN_METADATA_SOCKET` selects another existing absolute Unix socket. This transport cannot attach to the Windows desktop stdio server.
+Matching is exact after path normalization: listing a parent directory does not include its children. Without this setting, `npm run office` observes only its current working directory, normally the PetsTown repository.
 
-For an explicitly labelled **synthetic development office**:
+The default observer connects to an **already running** local daemon at `$CODEX_HOME/app-server-control/app-server-control.sock`, or `~/.codex/app-server-control/app-server-control.sock` when `CODEX_HOME` is unset. Set `PETSTOWN_METADATA_SOCKET` to use another existing absolute Unix socket. A Codex installation without this endpoint cannot use this transport.
 
-```sh
-npm run office -- --fixture --port 4318
+The observer shows loaded identities, runtime status and explicitly active goals when available. The macOS composition also attempts verified handoff and turn-lifecycle history readers. Unsupported sources retain their reported limitations; request replies remain unavailable. Connection failures appear in the office; the launcher never silently substitutes fixture data.
+
+### Observe existing session logs on Windows
+
+Windows automatically uses the included read-only session-log observer. It reads `CODEX_HOME/sessions`, or your user profile’s `.codex/sessions` directory by default. In PowerShell:
+
+```powershell
+$env:PETSTOWN_METADATA_CWDS = '["C:/path/to/your-project"]'
+npm run office
 ```
 
-Fixture activity is development evidence, not live Codex observation.
+Replace the project path with your actual Codex working directory. Forward slashes in JSON Windows paths avoid backslash escaping. To select a different log directory, set `$env:PETSTOWN_ROLLOUT_ROOT = "C:/path/to/sessions"` before launching.
 
-To connect a teammate's observation adapter:
+For a few specific logs instead of directory discovery, set `PETSTOWN_ROLLOUT_FILES` to a JSON array of absolute session-log paths:
+
+```powershell
+Remove-Item Env:PETSTOWN_ROLLOUT_ROOT -ErrorAction SilentlyContinue
+$env:PETSTOWN_ROLLOUT_FILES = '["C:/path/to/rollout-session.jsonl"]'
+npm run office
+```
+
+Logs describe recorded lifecycle events. Historical records alone do not establish current activity; new lifecycle records are required to confirm active work. Discovery is bounded and does not follow directory links. Invalid, replaced or conflicting identity metadata quarantines a file for the reader's lifetime; restart the observer to retry it. Restart is also required after the cumulative discovery limit of 1,000 tracked paths is reached. A missing discovery root is reported as disconnected.
+
+PowerShell environment variables persist in that terminal. Clear settings you no longer want with `Remove-Item Env:VARIABLE_NAME` or use a fresh terminal.
+
+### Launch options
 
 ```sh
+npm run office -- --port 4318
+npm run office -- --no-open
 npm run office -- --adapter ./path/to/adapter.ts
 ```
 
-Replace the module path with a module exporting the [adapter contract](docs/track-c.md#adapter-integration). An explicit adapter, including one selected by `PETSTOWN_ADAPTER_MODULE`, replaces the built-in metadata observer.
+| Option | Purpose |
+| --- | --- |
+| `--port <1–65535>` | Select a port; defaults to `PETSTOWN_PORT` or `4317`. |
+| `--no-open` | Start the bridge without opening a browser; visit its printed URL manually. |
+| `--fixture` | Show synthetic development data. |
+| `--adapter <module>` | Load a custom observation adapter; defaults to `PETSTOWN_ADAPTER_MODULE` when set. |
 
-Launcher options are `--fixture`, `--adapter <module>`, `--port <1–65535>` and `--no-open`. `PETSTOWN_PORT` and `PETSTOWN_ADAPTER_MODULE` provide defaults. Fixture and adapter modes cannot be combined. Repeated normal launches reuse only a recognized built-in bridge with matching platform, normalized directory allowlist and socket identity. Matching fixture launches reuse their bridge without replaying the trace. Explicit adapter launches and older bridges with unverified identity refuse automatic reuse; reopen their known URL or choose a free `--port`. Existing processes are preserved.
+Fixture and adapter modes cannot be combined. Custom modules must export the [adapter contract](docs/track-c.md#adapter-integration).
+
+Repeated normal launches can reuse a recognized built-in bridge with matching platform, project scope and socket identity. Matching fixture launches reuse their bridge without replaying the trace. Explicit adapter launches and older bridges with unverified identity refuse automatic reuse: reopen their known URL, stop their original terminal, or choose another port. The launcher preserves existing processes.
+
+### Troubleshooting
+
+| Problem | What to check |
+| --- | --- |
+| Empty office | Confirm your Codex session exists and its exact working directory appears in `PETSTOWN_METADATA_CWDS`. |
+| Disconnected or unsupported observer | Check the connection message. On Windows, check that the session-log directory exists and contains your sessions. On macOS/Linux, verify that the existing daemon socket is available, or configure a rollout source. |
+| Port occupied or bridge cannot be reused | Reopen the existing office URL, stop its original terminal, or add `--port 4318`. |
+| Browser does not open | Add `--no-open` and open the URL printed in the terminal. |
+| Missing build or stale UI | Run `npm run build` again after source changes. |
+| Pet download fails | Check `curl`, network access and certificates, then retry `npm run pets:fetch`. |
+| Fixture mode conflicts with adapter mode | Clear `PETSTOWN_ADAPTER_MODULE` in your terminal before launching with `--fixture`. |
+
+## Update the standalone browser office
+
+Stop the bridge, then update a clean checkout:
+
+```sh
+git pull --ff-only
+npm ci
+npm run pets:fetch
+npm run build
+```
+
+Launch again using your preferred mode. Preserve or commit local changes before updating.
+
+## Development
 
 For UI development with Vite and the bridge together:
 
@@ -58,6 +190,8 @@ npm run dev:all
 ```
 
 Use the Vite URL printed in the terminal. Combined development requires bridge port 4317; stop an existing bridge on that port first. Add `--fixture` for synthetic data or `--adapter ./path/to/adapter.ts` for a custom observer.
+
+Codex CLI can discover the repository-local `$office` skill through `/skills`; installing a global plugin is not required for the terminal commands above.
 
 ## Checks
 
@@ -102,7 +236,4 @@ Then consider [#8: Voice](https://github.com/JackInSightsV2/Pets-Town/issues/8) 
 - [Integration evidence and remaining checks](docs/integration-notes.md)
 - [Office image prompt and provenance](assets/office/office-v1.prompt.md)
 
-The app references three genuine built-in pet sprite sheets through the official asset URLs in [the pet manifest](src/shared/pets.ts), with a local download cache for reliable rendering. Plugin installation, full live office acceptance, voice and live computer view are not claimed complete.
-
-
-Windows rollout observation accepts `PETSTOWN_ROLLOUT_FILES` as a JSON array of absolute log paths, or `PETSTOWN_ROLLOUT_ROOT` as an absolute directory for bounded discovery of rollout files. Set `PETSTOWN_METADATA_CWDS` to a JSON array of exact project directories. Discovery is read-only and does not follow directory links. A file with invalid, replaced, or conflicting identity metadata is quarantined for the lifetime of the reader; the connection message reports the count and the roster may be incomplete. Restart the observer to retry quarantined files or when the cumulative discovery limit of 1,000 tracked paths is reached. A missing discovery root is reported as a disconnected source. Historical records do not establish current activity; only newly observed lifecycle records can do so.
+The app references three genuine built-in pet sprite sheets through the official asset URLs in [the pet manifest](src/shared/pets.ts), with a local download cache for reliable rendering. Local plugin packaging is available; full live office acceptance, voice and live computer view are not claimed complete. See [desktop integration](docs/chatgpt-integration.md) and [delivery status](docs/delivery-status.md).
