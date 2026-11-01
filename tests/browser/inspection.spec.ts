@@ -126,7 +126,7 @@ test('popup uses observed status and omits unavailable details through disconnec
 
 test('fullscreen office uses hover details and a viewport-bounded popup', async ({ page, request }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
+  await page.goto('/?view=2d');
   await expect(page.locator('header, footer, .agent-roster, .roster-panel, .office-toolbar, .office-project-area, .office-project-label, .scene-floor-tag, .scene-caption')).toHaveCount(0);
   await expect(page.getByTestId('agent-inspector')).toHaveCount(0);
   const pet = page.getByTestId('scene-agent-maple');

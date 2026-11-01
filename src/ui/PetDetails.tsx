@@ -93,11 +93,12 @@ export function PetDetails({ agent, snapshot, anchor, stale, onClose }: PetDetai
         </li>)}
       </ul> : null}
     </div>)}
-    {snapshot.source === 'codex' ? <a
+    {snapshot.source === 'codex' && !agent.agentId.startsWith('room:') ? <a
       className="pet-details-open"
       data-testid="open-chat"
       href={`codex://threads/${encodeURIComponent(agent.agentId)}`}
       aria-label={`Open ${agent.displayName} in Codex`}
     >Open chat <span aria-hidden="true">↗</span></a> : null}
+  {agent.agentId.startsWith('room:') && <p className="pet-details-activity">Shared by a teammate. Reply in Codex on their Mac.</p>}
   </aside>;
 }

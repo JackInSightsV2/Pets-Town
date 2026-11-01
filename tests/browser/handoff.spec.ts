@@ -25,7 +25,7 @@ test.beforeEach(async ({ request }) => {
 test('fresh SSE handoff moves the pair, shows its summary, returns home and ignores history/replay', async ({ page, request }) => {
   const historic = handoff('Historical fixture exchange');
   await emit(request, 'handoff.observed', 'maple', { handoff: historic });
-  await page.goto('/');
+  await page.goto('/?view=2d');
   await live(page, request);
   const scene = page.getByTestId('office-scene');
   await expect(scene).toHaveAttribute('data-meeting', '');
@@ -40,7 +40,7 @@ test('fresh SSE handoff moves the pair, shows its summary, returns home and igno
   expect(await maple.getAttribute('style')).not.toEqual(home[0]);
   expect(await willow.getAttribute('style')).not.toEqual(home[1]);
   await expect(page.getByTestId('handoff-summary')).toContainText(fresh.summary);
-  await page.screenshot({ path: 'docs/evidence/track-c-handoff.png', fullPage: true });
+  await page.screenshot({ path: 'test-results/track-c-handoff.png', fullPage: true });
   await expect(scene).toHaveAttribute('data-meeting-phase', 'returning');
   await expect(maple).toHaveAttribute('data-location', 'home');
   await expect(willow).toHaveAttribute('data-location', 'home');
@@ -60,7 +60,7 @@ test('fresh SSE handoff moves the pair, shows its summary, returns home and igno
 });
 
 test('backend reset and an observed participant failure cancel meetings', async ({ page, request }) => {
-  await page.goto('/');
+  await page.goto('/?view=2d');
   await live(page, request);
   const scene = page.getByTestId('office-scene');
   const first = handoff('Fixture exchange cancelled by scene reset');
