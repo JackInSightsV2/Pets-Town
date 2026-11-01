@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import type { OfficeAdapter } from '../../server/adapter.js';
 import { emptySnapshot, type OfficeAgent, type OfficeEvent } from '../../shared/contract.js';
 import type { VerifiedHistoryReader } from '../handoffs/history-adapter.js';
+import { createTurnLifecycleController } from '../../office/lifecycle/controller.js';
 import { createTurnLifecycleHistoryAdapter } from './history-adapter.js';
 
 const at = '2026-11-01T16:00:00Z';
@@ -82,6 +83,43 @@ test('initial latest terminal is silent and strips transcript/error details', as
   assert.doesNotMatch(JSON.stringify(snapshot.latestTurns), /PRIVATE-SYNTHETIC|"latest"|"old"/);
   await delay(40);
   assert.equal(h.lifecycle().length, 0);
+});
+
+test('initial terminal without start time cannot poison a later verified live start', async t => {
+  const h = harness();
+  h.set('synthetic-agent', [{ ...turn('unordered-terminal', 'completed'), startedAt: null }]);
+  const adapter = await setup(h); t.after(() => adapter.stop());
+  const snapshot = await adapter.initialSnapshot();
+  assert.equal(snapshot.latestTurns, undefined);
+  const controller = createTurnLifecycleController();
+  const generation = controller.baseline({ agents: snapshot.agents, latestTurns: snapshot.latestTurns ?? [],
+    connected: true, presentation: 'live' });
+  h.set('synthetic-agent', [turn('verified-next-turn', 'inProgress', 200)]);
+  await until(() => h.lifecycle().length === 1);
+  const observation = h.lifecycle()[0].data.observation;
+  assert.equal(observation.delivery, 'live');
+  assert.equal(observation.status, 'started');
+  assert.equal(controller.observe(observation, generation), 'applied');
+  assert.equal(controller.getState()[0].phase, 'entering');
+  assert.equal(controller.getState()[0].visible, true);
+  assert.equal(controller.drainEffects()[0].type, 'enter');
+  assert.equal((await adapter.initialSnapshot()).latestTurns?.[0].startedAt, 200);
+});
+
+test('same-turn terminal without start time retains the known start and permits later turns', async t => {
+  const h = harness(); h.set('synthetic-agent', [turn('known-turn', 'inProgress', 100)]);
+  const adapter = await setup(h); t.after(() => adapter.stop());
+  h.set('synthetic-agent', [{ ...turn('known-turn', 'completed', 100), startedAt: null }]);
+  await until(() => h.lifecycle().length === 1);
+  assert.equal(h.lifecycle()[0].data.observation.status, 'succeeded');
+  assert.equal(h.lifecycle()[0].data.observation.delivery, 'live');
+  const terminal = (await adapter.initialSnapshot()).latestTurns?.[0];
+  assert.equal(terminal?.startedAt, 100);
+  assert.equal(terminal?.status, 'succeeded');
+  h.set('synthetic-agent', [turn('newer-turn', 'inProgress', 200)]);
+  await until(() => h.lifecycle().length === 2);
+  assert.equal(h.lifecycle()[1].data.observation.delivery, 'live');
+  assert.equal((await adapter.initialSnapshot()).latestTurns?.[0].startedAt, 200);
 });
 
 test('verified source changes emit one live start/success/failure/interruption each', async t => {

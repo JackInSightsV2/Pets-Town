@@ -111,6 +111,9 @@ export async function createTurnLifecycleHistoryAdapter(options: TurnLifecycleHi
   function observe(observation: TurnLifecycleObservation, initial: boolean) {
     if (!state) return;
     const previous = state.latestTurns?.find(row => row.agentId === observation.agentId);
+    // Do not seed an unordered terminal that would block every later distinct
+    // turn. A same-turn terminal can retain its already established start time.
+    if (observation.startedAt === null && !(previous?.turnId === observation.turnId && previous.startedAt !== null)) return;
     // A whole short turn may finish between polls. Reconcile its outcome without
     // replaying an exit/death for work this observer never saw start.
     if (observation.status !== 'started' && previous?.turnId !== observation.turnId) {
