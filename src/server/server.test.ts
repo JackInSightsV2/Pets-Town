@@ -7,6 +7,8 @@ import { join } from 'node:path';
 import { emptySnapshot, type OfficeEvent } from '../shared/contract.js';
 import { createOfficeServer } from './server.js';
 import type { OfficeAdapter } from './adapter.js';
+import { createOfficeStore } from '../client/store.js';
+import { isOfficeEvent } from '../client/validation.js';
 
 function adapter() {let listener:(event:OfficeEvent)=>void=()=>{};let stopped=false;return {source:{initialSnapshot:()=>emptySnapshot(),subscribe(fn){listener=fn;return()=>{listener=()=>{};};},stop(){stopped=true;}} satisfies OfficeAdapter,emit:(event:OfficeEvent)=>listener(event),stopped:()=>stopped};}
 function event(type:string,data:unknown,id=crypto.randomUUID()):OfficeEvent {return {protocolVersion:1,bridgeEpoch:'adapter',seq:12,eventId:id,occurredAt:'2026-11-01T13:00:00Z',source:'codex',agentId:'real-agent',type,data} as OfficeEvent;}
@@ -86,4 +88,27 @@ test('bootstrap buffers request events while initial snapshot is pending',async(
   let listener:(event:OfficeEvent)=>void=()=>{};
   const source:OfficeAdapter={subscribe(fn){listener=fn;return()=>{};},async initialSnapshot(){const snapshot=emptySnapshot('adapter');await Promise.resolve();listener(event('request.opened',{request:{requestId:'during-bootstrap',agentId:'real-agent',kind:'user-input',prompt:'Observed',options:[],createdAt:'2026-11-01T13:00:00Z',responseCapability:{supported:false,reason:'Unsupported'},revision:null}}));return snapshot;},stop(){}};
   const server=await createOfficeServer({adapter:source});t.after(()=>server.close());const snapshot=await (await fetch(server.url+'/api/office')).json();assert.equal(snapshot.pendingRequests[0].requestId,'during-bootstrap');assert.equal(snapshot.lastSeq,1);
+});
+
+
+test('a project discovered after bootstrap reaches the browser store through SSE', async t => {
+  const a = adapter(); const server = await createOfficeServer({ adapter: a.source });
+  t.after(() => server.close());
+  const initial = await (await fetch(server.url + '/api/office')).json();
+  const store = createOfficeStore(initial);
+  const project = { projectId: 'new-project', displayName: 'New project', cwd: '/new-project' };
+  a.emit({ ...event('project.upserted', { project }), agentId: null });
+  const response = await fetch(server.url + `/api/events?cursor=${initial.bridgeEpoch}:0`, { signal: AbortSignal.timeout(3000) });
+  const reader = response.body!.getReader();
+  try {
+    const chunk = new TextDecoder().decode((await reader.read()).value);
+    const line = chunk.split('\n').find(line => line.startsWith('data: '));
+    assert.ok(line);
+    const delivered: unknown = JSON.parse(line.slice(6));
+    assert.ok(isOfficeEvent(delivered));
+    store.applyEvent(delivered);
+    assert.deepEqual(store.getState().snapshot!.projects, [project]);
+    const latest = await (await fetch(server.url + '/api/office')).json();
+    assert.deepEqual(latest.projects, [project]);
+  } finally { await reader.cancel(); }
 });

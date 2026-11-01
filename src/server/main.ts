@@ -1,10 +1,14 @@
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
+import { createHash } from 'node:crypto';
+import { homedir } from 'node:os';
+import { canonicalizeCwd } from '../codex/observer-normalization.js';
 import { lstat } from 'node:fs/promises';
 import { builtInPets } from '../shared/pets.js';
 import { createOfficeServer } from './server.js';
 import { createFixtureAdapter } from './fixture.js';
-import { createUnsupportedAdapter, type OfficeAdapter } from './adapter.js';
+import type { OfficeAdapter } from './adapter.js';
+import { createAdapter as createCodexMetadataAdapter } from '../codex/metadata-adapter.js';
 
 export function readOptions(args=process.argv.slice(2)) {
   const value=(name:string)=>{const i=args.indexOf(name);if(i<0)return undefined;if(!args[i+1]||args[i+1].startsWith('--'))throw new Error(`${name} requires a value`);return args[i+1];};
@@ -14,9 +18,18 @@ export function readOptions(args=process.argv.slice(2)) {
   if(args.includes('--fixture')&&adapterModule)throw new Error('Choose --fixture or --adapter, not both');
   return {port,fixture:args.includes('--fixture'),adapterModule,noOpen:args.includes('--no-open')};
 }
+/** Opaque identity of the built-in observer's exact scope and existing daemon endpoint. */
+export function defaultObserverIdentity(): string {
+  const paths:unknown=process.env.PETSTOWN_METADATA_CWDS?JSON.parse(process.env.PETSTOWN_METADATA_CWDS):[process.cwd()];
+  if(!Array.isArray(paths)||paths.length===0)throw new Error('PETSTOWN_METADATA_CWDS must be a nonempty JSON array of absolute directories.');
+  const canonical=paths.map(canonicalizeCwd);
+  if(canonical.some(path=>path===null))throw new Error('Observer directories must be absolute.');
+  const socket=resolve(process.env.PETSTOWN_METADATA_SOCKET??resolve(process.env.CODEX_HOME??resolve(homedir(),'.codex'),'app-server-control/app-server-control.sock'));
+  return createHash('sha256').update(JSON.stringify({kind:'metadata-v1',platform:process.platform,cwds:[...new Set(canonical)].sort(),socket})).digest('hex');
+}
 export async function loadAdapter(options: ReturnType<typeof readOptions>): Promise<OfficeAdapter> {
   if(options.fixture)return createFixtureAdapter();
-  if(!options.adapterModule)return createUnsupportedAdapter();
+  if(!options.adapterModule)return createCodexMetadataAdapter();
   const specifier=options.adapterModule.startsWith('.')||options.adapterModule.startsWith('/')?pathToFileURL(resolve(options.adapterModule)).href:options.adapterModule;
   const module=await import(specifier);
   const candidate=module.createAdapter??module.default;
@@ -35,7 +48,7 @@ export async function approvedLocalPetFiles(root=fileURLToPath(new URL('../../',
 }
 export async function startBridge(options=readOptions()) {
   const root=fileURLToPath(new URL('../../',import.meta.url));
-  return createOfficeServer({port:options.port,adapter:await loadAdapter(options),distDir:resolve(root,'dist'),officeAssetPath:resolve(root,'assets/office/office-v1.png'),petAssetFiles:await approvedLocalPetFiles(root)});
+  return createOfficeServer({port:options.port,adapter:await loadAdapter(options),distDir:resolve(root,'dist'),officeAssetPath:resolve(root,'assets/office/office-v1.png'),petAssetFiles:await approvedLocalPetFiles(root),...(!options.fixture&&!options.adapterModule?{launchIdentity:defaultObserverIdentity()}:{})});
 }
 export function installShutdown(bridge: Awaited<ReturnType<typeof startBridge>>) {
   let closing=false;

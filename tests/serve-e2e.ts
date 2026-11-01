@@ -31,6 +31,7 @@ Object.assign(snapshot, {
   connection: { status: 'connected', lastObservedAt: at, message: 'Explicit browser test fixture' },
 });
 snapshot.capabilities.observeAgents = { supported: true, reason: null };
+snapshot.capabilities.observeHandoffs = { supported: true, reason: 'Explicit synthetic handoff fixture' };
 const listeners = new Set<(event: OfficeEvent) => void>();
 const adapter: OfficeAdapter = {
   initialSnapshot: () => structuredClone(snapshot),

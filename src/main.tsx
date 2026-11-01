@@ -1,9 +1,9 @@
 import { createRoot } from 'react-dom/client';
-import { createOfficeStore } from './client/store';
+import { createHandoffStore } from './client/handoffs';
 import { connectOffice, presentationAction } from './client/connection';
 import { App } from './ui/App';
 
-const store = createOfficeStore();
+const store = createHandoffStore();
 const connection = connectOffice(store);
 const root = document.getElementById('root');
 if (!root) throw new Error('PetsTown needs a #root element.');

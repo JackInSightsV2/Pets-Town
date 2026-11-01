@@ -21,6 +21,7 @@ export function validEvent(event: unknown): event is OfficeEvent {
   if(!object(event)||event.protocolVersion!==1||!text(event.eventId)||!event.eventId||!timestamp(event.occurredAt)||!source(event.source)||!nullableText(event.agentId)||!object(event.data))return false;
   const data=event.data;
   switch(event.type) {
+    case 'project.upserted': {const p=data.project;return event.agentId===null&&object(p)&&text(p.projectId)&&text(p.displayName)&&nullableText(p.cwd);}
     case 'agent.upserted': return agent(data.agent);
     case 'agent.activity': return activity(data.activity);
     case 'agent.state.changed': return text(event.agentId)&&runtime(data.runtimeState);

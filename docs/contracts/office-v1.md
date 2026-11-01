@@ -62,6 +62,7 @@ The JSON is an illustrative fixture, not evidence of a real run. source is codex
 
 | Type | Required meaning/payload |
 | --- | --- |
+| project.upserted | Current projectId, displayName and cwd; agentId null. Publish before agents referencing a newly observed project so empty-start and later projects need no office restart. |
 | agent.upserted | Current normalized agent metadata; safe to apply repeatedly. |
 | agent.activity | Activity kind, short visible summary and source item correlation when available. |
 | agent.state.changed | New runtime state; do not infer closure from idle. |

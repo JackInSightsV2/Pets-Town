@@ -88,6 +88,7 @@ export interface EventEnvelope<T extends string, D> {
   data: D;
 }
 export type OfficeEvent =
+  | EventEnvelope<'project.upserted', { project: OfficeProject }>
   | EventEnvelope<'agent.upserted', { agent: OfficeAgent }>
   | EventEnvelope<'agent.activity', { activity: ActivityEntry }>
   | EventEnvelope<'agent.state.changed', { runtimeState: RuntimeState }>

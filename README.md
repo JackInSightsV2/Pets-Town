@@ -1,8 +1,8 @@
 # PetsTown
 
-A living office for existing Codex agents, launched from Codex CLI into a local browser. Genuine ChatGPT/Codex pets arrive, give a brief standup and reflect real work, requests and handoffs.
+A browser office for existing Codex agents, launched from Codex CLI. Genuine ChatGPT/Codex pets make observed agent state visible.
 
-**Status:** this branch contains the local bridge, browser office, pet inspection panel, request tracking and development fixtures. The existing-agent adapter and live acceptance remain integration work; the app does not start Codex agents. See the [Track C handoff](docs/track-c.md) and [90-second demo runbook](docs/demo-runbook.md).
+**Status:** the local bridge and browser office observe existing Codex agent metadata, show active goals when available, and support pet inspection, request tracking and handoff presentation. Normal launch attempts the built-in read-only observer. Live request and handoff observation and the timed target-Mac rehearsal remain acceptance gates; the app does not start Codex agents. See the [Track C handoff](docs/track-c.md) and [90-second demo runbook](docs/demo-runbook.md).
 
 ![PetsTown office environment](assets/office/office-v1.png)
 
@@ -14,20 +14,30 @@ Use Node.js 22.12 or later, from the repository root:
 npm ci
 npm run pets:fetch
 npm run build
-npm run office -- --fixture
+npm run office
 ```
 
-`--fixture` opens an explicitly labelled **synthetic development office**. It is not live Codex evidence. Keep the terminal open; Ctrl-C stops the bridge it owns. The default browser address is `http://127.0.0.1:4317`.
+Normal launch opens `http://127.0.0.1:4317` and attempts to observe an **already running** local Codex daemon. Its default scope is the exact current working directory, normally this repository root. It shows loaded agent identities, runtime status and explicitly active goals when available. Item activity, request details and handoffs are unavailable through metadata polling. Connection failures are displayed; the launcher never starts agents or silently substitutes fixture data.
+
+Keep the terminal open; Ctrl-C stops only the bridge it owns. Install dependencies and build on a fresh checkout or after relevant changes, rather than on every launch.
 
 Codex CLI can discover the repository-local `$office` skill through `/skills`.
 
-For a read-only live metadata preview against an already running local Codex daemon:
+To include several project directories, supply an explicit allowlist:
 
 ```sh
-npm run office -- --adapter ./tests/manual/codex-metadata-adapter.ts --port 4319
+PETSTOWN_METADATA_CWDS='["/absolute/path/project-a","/absolute/path/project-b"]' npm run office
 ```
 
-This temporary integration adapter shows existing PetsTown agents, runtime status and explicitly active goals when present. Activity, request details and handoffs remain unavailable; lane B owns the full observer.
+`PETSTOWN_METADATA_CWDS` is a nonempty JSON array of absolute directories. Matching is exact after path normalization; listing a parent does not include its child directories. The default control socket is `$CODEX_HOME/app-server-control/app-server-control.sock`, or `~/.codex/app-server-control/app-server-control.sock` when `CODEX_HOME` is unset. `PETSTOWN_METADATA_SOCKET` selects another existing absolute Unix socket. This transport cannot attach to the Windows desktop stdio server.
+
+For an explicitly labelled **synthetic development office**:
+
+```sh
+npm run office -- --fixture --port 4318
+```
+
+Fixture activity is development evidence, not live Codex observation.
 
 To connect a teammate's observation adapter:
 
@@ -35,17 +45,17 @@ To connect a teammate's observation adapter:
 npm run office -- --adapter ./path/to/adapter.ts
 ```
 
-Replace the module path with a module exporting the [adapter contract](docs/track-c.md#adapter-integration). Without `--fixture` or `--adapter`, the app opens with an honest unsupported/empty source. No live adapter is selected automatically.
+Replace the module path with a module exporting the [adapter contract](docs/track-c.md#adapter-integration). An explicit adapter, including one selected by `PETSTOWN_ADAPTER_MODULE`, replaces the built-in metadata observer.
 
-Launcher options are `--fixture`, `--adapter <module>`, `--port <1–65535>` and `--no-open`. `PETSTOWN_PORT` and `PETSTOWN_ADAPTER_MODULE` provide defaults. Fixture and adapter modes cannot be combined. Repeat fixture/default launches can reuse a matching bridge; an explicit adapter launch refuses an occupied office port because adapter identity cannot be verified. Use a free `--port` or stop the old bridge yourself.
+Launcher options are `--fixture`, `--adapter <module>`, `--port <1–65535>` and `--no-open`. `PETSTOWN_PORT` and `PETSTOWN_ADAPTER_MODULE` provide defaults. Fixture and adapter modes cannot be combined. Repeated normal launches reuse only a recognized built-in bridge with matching platform, normalized directory allowlist and socket identity. Matching fixture launches reuse their bridge without replaying the trace. Explicit adapter launches and older bridges with unverified identity refuse automatic reuse; reopen their known URL or choose a free `--port`. Existing processes are preserved.
 
 For UI development with Vite and the bridge together:
 
 ```sh
-npm run dev:all -- --fixture
+npm run dev:all
 ```
 
-Use the Vite URL printed in the terminal. Combined development requires bridge port 4317; stop an existing bridge on that port first. `npm run dev:all -- --adapter ./path/to/adapter.ts` uses the same adapter module contract.
+Use the Vite URL printed in the terminal. Combined development requires bridge port 4317; stop an existing bridge on that port first. Add `--fixture` for synthetic data or `--adapter ./path/to/adapter.ts` for a custom observer.
 
 ## Checks
 
@@ -85,8 +95,9 @@ Then consider [#8: Voice](https://github.com/JackInSightsV2/Pets-Town/issues/8) 
 - [Issue and dependency mapping](.claude/epics/petstown-hackathon/github-mapping.md)
 - [PRD and user stories](.claude/prds/petstown-hackathon.md)
 - [Technical epic and acceptance criteria](.claude/epics/petstown-hackathon/epic.md)
+- [Office mapping and environment coordinates](docs/office-mapping.md)
 - [Glossary](GLOSSARY.md)
 - [Integration evidence and remaining checks](docs/integration-notes.md)
 - [Office image prompt and provenance](assets/office/office-v1.prompt.md)
 
-The app references three genuine built-in pet sprite sheets through the official asset URLs in [the pet manifest](src/shared/pets.ts). Live agent mapping and the integrated asset check remain part of #1. Plugin installation, live office acceptance, voice and live computer view are not claimed complete.
+The app references three genuine built-in pet sprite sheets through the official asset URLs in [the pet manifest](src/shared/pets.ts), with a local download cache for reliable rendering. Plugin installation, full live office acceptance, voice and live computer view are not claimed complete.

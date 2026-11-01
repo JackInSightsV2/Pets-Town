@@ -1,0 +1,24 @@
+/* A single logical office grows beyond the artwork instead of reusing desks. */
+.office-scene.mapped-office{height:580px;aspect-ratio:auto;overflow:hidden;background:#c8a884}
+.office-map-viewport{position:absolute;inset:0;overflow:auto;overscroll-behavior:contain;scrollbar-color:#8c8068 #ddccb0;scrollbar-width:thin;outline-offset:-4px;scroll-padding:50px 24px}
+.office-map-surface{position:relative;isolation:isolate;min-width:100%;min-height:100%;background-color:#dfb68b;background-image:repeating-linear-gradient(0deg,transparent 0,transparent 27px,#b9895c40 28px,transparent 29px),repeating-linear-gradient(90deg,transparent 0,transparent 223px,#bd916329 224px,transparent 225px);overflow:hidden}
+.office-map-surface .office-map-artwork{position:absolute;left:0;top:0;display:block;max-width:none;object-fit:contain;object-position:left top;pointer-events:none}
+.office-map-surface .scene-grain{z-index:0;pointer-events:none}
+.office-scene.mapped-office .scene-floor-tag,.office-scene.mapped-office>.scene-caption{z-index:9;pointer-events:none}
+.office-project-area{position:absolute;border:1px dashed #eef0d8b0;background:#f1f2d80b;border-radius:9px;pointer-events:none;z-index:1;--project-accent:#596e66}
+.office-project-area.project-area-color-1{--project-accent:#985b43}.office-project-area.project-area-color-2{--project-accent:#4f6f87}.office-project-area.project-area-color-3{--project-accent:#82723d}
+.office-project-area.is-overflow-area{background:#fff8df24;border-color:#9e805a85}
+.office-project-label{display:flex;align-items:center;gap:6px;position:absolute;left:9px;top:-28px;max-width:calc(100% - 18px);padding:5px 8px;background:#fffbeded;border:1px solid #cbbd9c;border-radius:4px;color:#59614c;font-size:9px;font-weight:750;line-height:1.4;box-shadow:0 2px 4px #50432c15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.office-project-marker{display:block;width:6px;height:6px;border-radius:2px;background:var(--project-accent);flex:none}
+.office-project-label small{font-size:7px;font-weight:500;color:#9b8d71;padding-left:3px;white-space:nowrap}
+.office-scene.mapped-office .scene-agent{width:96px;min-width:0;padding:0 3px 5px;z-index:3;scroll-margin:60px 25px}
+.office-scene.mapped-office .scene-agent[data-meeting-participant="true"]{z-index:4}
+.office-scene.mapped-office .scene-agent .native-pet{transform:none;margin:0}
+.office-scene.mapped-office .scene-agent-label{max-width:90px;font-size:9px;padding:4px 6px}
+.office-scene.mapped-office .scene-attention{right:13px;top:0;width:19px;height:21px;font-size:13px}
+.office-scene.mapped-office .handoff-meeting{width:330px;max-width:330px}
+.office-scene.mapped-office .handoff-bubble{padding:12px 15px}
+.office-scene.mapped-office .handoff-bubble p{font-size:11px;line-height:1.55;max-height:6.2em}
+.office-scene.mapped-office .handoff-participants{font-size:9px}
+.office-map-viewport::-webkit-scrollbar{width:9px;height:9px}.office-map-viewport::-webkit-scrollbar-thumb{background:#99866c;border:2px solid #ddccb0;border-radius:8px}.office-map-viewport::-webkit-scrollbar-track{background:#ddccb0}
+@media(max-width:600px){.office-scene.mapped-office{height:440px}.office-scene.mapped-office>.scene-caption>span:last-child{display:inline;margin-left:auto;font-size:7px}.office-scene.mapped-office .scene-agent:before{width:54px;bottom:21px;height:12px}}

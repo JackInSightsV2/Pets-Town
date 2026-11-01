@@ -65,7 +65,7 @@ test('oversized or malformed lines fail closed and read requests cannot include 
   const reader = new RolloutReader([path]);
   await status(reader);
   await assert.rejects(reader.call('thread/read', { threadId: 'synthetic-id', includeTurns: true }));
-  await appendFile(path, 'x'.repeat(256 * 1024 + 1));
+  await appendFile(path, 'x'.repeat(16 * 1024 * 1024 + 1));
   await assert.rejects(reader.call('thread/loaded/list', {}));
 }));
 
@@ -97,4 +97,15 @@ test('synthetic: missing turn correlation cannot claim working or idle', async (
   assert.equal(await status(reader), 'unknown');
   await appendFile(path, line('event_msg', { type: 'task_complete' }));
   assert.equal(await status(reader), 'unknown');
+}));
+
+test('large historical transcripts and large records use bounded reads and retain lifecycle semantics', async () => fixture(async path => {
+  const largeRecord = line('response_item', { text: 'x'.repeat(9 * 1024 * 1024) });
+  await writeFile(path, meta + largeRecord + event('task_started', 'old'));
+  const reader = new RolloutReader([path]);
+  assert.equal(await status(reader), 'unknown');
+  await appendFile(path, event('task_complete', 'old') + event('task_started', 'new'));
+  assert.equal(await status(reader), 'active');
+  await appendFile(path, event('task_complete', 'new'));
+  assert.equal(await status(reader), 'idle');
 }));

@@ -2,8 +2,9 @@ import { open } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
 import type { MetadataReader } from './metadata-adapter.js';
 
-const MAX_FILE_BYTES = 8 * 1024 * 1024;
-const MAX_LINE_BYTES = 256 * 1024;
+const READ_CHUNK_BYTES = 64 * 1024;
+// Bound memory per record while accommodating large normal transcript records.
+const MAX_LINE_BYTES = 16 * 1024 * 1024;
 const MAX_PATHS = 1000;
 type Obj = Record<string, unknown>;
 const obj = (v: unknown): v is Obj => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -65,31 +66,48 @@ export class RolloutReader implements MetadataReader {
     const handle = await open(file.path, 'r');
     try {
       const stat = await handle.stat();
-      if (!stat.isFile() || stat.size > MAX_FILE_BYTES || stat.size < file.lastSize) throw new Error('Rollout changed.');
+      if (!stat.isFile() || stat.size < file.lastSize) throw new Error('Rollout changed.');
       if (!file.initial) {
         if ((file.ino && stat.ino && (file.ino !== stat.ino || file.dev !== stat.dev))) throw new Error('Rollout replaced.');
         const check = Buffer.alloc(file.prefix.length);
         const read = await handle.read(check, 0, check.length, 0);
         if (read.bytesRead !== check.length || !check.equals(file.prefix)) throw new Error('Rollout replaced.');
       }
-      const length = stat.size - file.offset;
-      const data = Buffer.alloc(length);
-      const read = await handle.read(data, 0, length, file.offset);
-      if (read.bytesRead !== length) throw new Error('Short rollout read.');
       if (file.initial) {
         file.dev = stat.dev; file.ino = stat.ino; file.historicalEnd = stat.size;
-        file.prefix = Buffer.from(data.subarray(0, Math.min(256, data.length)));
+        const prefix = Buffer.alloc(Math.min(256, stat.size));
+        const read = await handle.read(prefix, 0, prefix.length, 0);
+        if (read.bytesRead !== prefix.length) throw new Error('Short rollout read.');
+        file.prefix = prefix;
       }
-      const combined = data;
-      let start = 0;
-      for (let i = 0; i < combined.length; i++) if (combined[i] === 10) {
-        if (i - start > MAX_LINE_BYTES) throw new Error('Oversized rollout line.');
-        this.consume(file, combined.subarray(start, i), file.offset + start < file.historicalEnd);
-        start = i + 1;
+      // Only complete lines advance the durable offset. An incomplete tail is
+      // reread next poll so transcript bytes are never retained between polls.
+      let position = file.offset;
+      let lineStart = position;
+      let pieces: Buffer[] = [];
+      let lineLength = 0;
+      while (position < stat.size) {
+        const length = Math.min(READ_CHUNK_BYTES, stat.size - position);
+        const data = Buffer.alloc(length);
+        const read = await handle.read(data, 0, length, position);
+        if (read.bytesRead !== length) throw new Error('Short rollout read.');
+        let start = 0;
+        for (let i = 0; i < data.length; i++) if (data[i] === 10) {
+          const part = data.subarray(start, i);
+          lineLength += part.length;
+          if (lineLength > MAX_LINE_BYTES) throw new Error('Oversized rollout line.');
+          pieces.push(part);
+          this.consume(file, Buffer.concat(pieces, lineLength), lineStart < file.historicalEnd);
+          file.offset = position + i + 1;
+          lineStart = file.offset;
+          pieces = []; lineLength = 0; start = i + 1;
+        }
+        const tail = data.subarray(start);
+        lineLength += tail.length;
+        if (lineLength > MAX_LINE_BYTES) throw new Error('Oversized rollout line.');
+        if (tail.length) pieces.push(tail);
+        position += length;
       }
-      if (combined.length - start > MAX_LINE_BYTES) throw new Error('Oversized rollout line.');
-      // Re-read an incomplete tail next time; retain no partial transcript bytes.
-      file.offset += start;
       file.lastSize = stat.size;
       file.initial = false;
     } finally { await handle.close(); }

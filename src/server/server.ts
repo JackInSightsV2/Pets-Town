@@ -9,7 +9,7 @@ import { createUnsupportedAdapter, type OfficeAdapter } from './adapter.js';
 import { validEvent } from './validation.js';
 import { builtInPets } from '../shared/pets.js';
 
-export interface OfficeServerOptions { adapter?: OfficeAdapter; port?: number; distDir?: string; officeAssetPath?: string; replayLimit?: number; presentationStepMs?: number; petAssetFiles?: Readonly<Record<string, string>> }
+export interface OfficeServerOptions { adapter?: OfficeAdapter; launchIdentity?: string; port?: number; distDir?: string; officeAssetPath?: string; replayLimit?: number; presentationStepMs?: number; petAssetFiles?: Readonly<Record<string, string>> }
 export async function createOfficeServer(options: OfficeServerOptions = {}) {
   const adapter = options.adapter ?? createUnsupportedAdapter();
   let snapshot: OfficeSnapshot;
@@ -63,6 +63,7 @@ export async function createOfficeServer(options: OfficeServerOptions = {}) {
       case 'agent.closed': if(agent) agent.runtimeState='closed'; break;
       case 'request.opened': snapshot.pendingRequests=snapshot.pendingRequests.filter(r=>r.requestId!==event.data.request.requestId); event.data.request.responseCapability=snapshot.capabilities.respondToRequests; snapshot.pendingRequests.push(event.data.request); {const owner=snapshot.agents.find(a=>a.agentId===event.data.request.agentId);if(owner&&!owner.pendingRequestIds.includes(event.data.request.requestId))owner.pendingRequestIds.push(event.data.request.requestId);} break;
       case 'request.resolved': { const owners=new Set([...snapshot.pendingRequests.filter(r=>r.requestId===event.data.requestId).map(r=>r.agentId),...snapshot.agents.filter(a=>a.pendingRequestIds.includes(event.data.requestId)).map(a=>a.agentId)]); if(event.agentId!==null&&[...owners].some(id=>id!==event.agentId)) { snapshot.lastSeq--; return; } snapshot.pendingRequests=snapshot.pendingRequests.filter(r=>r.requestId!==event.data.requestId); for(const owner of snapshot.agents) owner.pendingRequestIds=owner.pendingRequestIds.filter(id=>id!==event.data.requestId); break; }
+      case 'project.upserted': snapshot.projects=[...snapshot.projects.filter(p=>p.projectId!==event.data.project.projectId),event.data.project]; break;
       case 'handoff.observed': snapshot.recentHandoffs=[event.data.handoff,...snapshot.recentHandoffs.filter(h=>h.handoffId!==event.data.handoff.handoffId)].slice(0,50); break;
       case 'connection.changed': snapshot.connection=event.data.connection; break;
       case 'presentation.changed': snapshot.presentation={state:event.data.state,canSkip:event.data.canSkip}; snapshot.officeSessionId=event.data.officeSessionId; break;
@@ -95,7 +96,7 @@ export async function createOfficeServer(options: OfficeServerOptions = {}) {
       return json(response,200,{officeSessionId:snapshot.officeSessionId,presentation:snapshot.presentation});
     }
     if(request.method!=='GET') return json(response,405,{error:'Method not allowed'});
-    if(url.pathname==='/api/health') return json(response,200,{service:'petstown-office',protocolVersion:1,bridgeEpoch:epoch,source:snapshot.source,adapterErrors});
+    if(url.pathname==='/api/health') return json(response,200,{service:'petstown-office',protocolVersion:1,bridgeEpoch:epoch,source:snapshot.source,adapterErrors,launchIdentity:options.launchIdentity});
     if(url.pathname==='/api/office') return json(response,200,snapshot);
     if(url.pathname==='/api/events') {
       const cursor=request.headers['last-event-id']??url.searchParams.get('cursor');

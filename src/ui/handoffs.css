@@ -1,0 +1,14 @@
+/* Handoff choreography changes positions only; runtime state remains source-owned. */
+.office-scene .scene-agent{transition:left 1100ms ease-in-out,top 1100ms ease-in-out,filter .15s;will-change:left,top}
+.office-scene .scene-agent[data-meeting-participant="true"]{z-index:4}
+.office-scene[data-meeting-phase="exchanging"] .scene-agent[data-meeting-participant="true"]:before{background:#fff4b77d;outline:1px solid #f9e4a8;outline-offset:3px}
+.handoff-meeting{position:absolute;left:53.5%;top:15%;width:min(330px,52%);transform:translateX(-50%);z-index:6;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:7px}
+.handoff-location{display:inline-block;border:1px solid #e3d3b3;background:#fff9e9f0;color:#807457;border-radius:3px;font-size:7px;font-weight:750;letter-spacing:1.1px;padding:4px 7px;box-shadow:0 2px 5px #392e191a}
+.handoff-bubble{width:100%;padding:12px 15px;background:#fffef5fa;border:1px solid #d4c49d;border-radius:7px;box-shadow:0 4px 15px #3e2c1e25;position:relative;pointer-events:auto}
+.handoff-bubble:after{content:"";position:absolute;left:50%;bottom:-6px;width:10px;height:10px;background:#fffef5;border-right:1px solid #d4c49d;border-bottom:1px solid #d4c49d;transform:translateX(-50%) rotate(45deg)}
+.handoff-participants{display:block;font-size:9px;font-weight:750;color:#6c7859;line-height:1.4;overflow-wrap:anywhere}
+.handoff-participants>span{padding:0 5px;color:#a49674}
+.handoff-bubble p{font-size:11px;line-height:1.55;color:#59614d;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:5px;max-height:6.2em;overflow:auto}
+.hidden-handoff-count{position:absolute;right:12px;top:12px;z-index:7;padding:7px 8px;border:1px solid #dfcca8;border-radius:4px;background:#fff4ddeb;color:#8c6f3e;font-size:8px;font-weight:650;max-width:45%;text-align:right}
+@media(max-width:600px){.handoff-meeting{top:12%;width:64%;gap:4px}.handoff-location{font-size:6px;padding:3px 5px}.handoff-bubble{padding:8px 10px}.handoff-participants{font-size:8px}.handoff-bubble p{font-size:9px;line-height:1.5;max-height:4.5em}.hidden-handoff-count{top:8px;right:8px;font-size:7px;padding:5px 6px;max-width:42%}}
+@media(prefers-reduced-motion:reduce){.office-scene .scene-agent{transition:none;will-change:auto}}
