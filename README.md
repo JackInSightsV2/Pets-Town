@@ -18,6 +18,16 @@ npm run office -- --fixture
 
 `--fixture` opens an explicitly labelled **synthetic development office**. It is not live Codex evidence. Keep the terminal open; Ctrl-C stops the bridge it owns. The default browser address is `http://127.0.0.1:4317`.
 
+Codex CLI can discover the repository-local `$office` skill through `/skills`.
+
+For a read-only live metadata preview against an already running local Codex daemon:
+
+```sh
+npm run office -- --adapter ./tests/manual/codex-metadata-adapter.ts --port 4319
+```
+
+This temporary integration adapter shows existing PetsTown agents and runtime status. Task text, request details and handoffs remain unavailable; lane B owns the full observer.
+
 To connect a teammate's observation adapter:
 
 ```sh
