@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import type { OfficeAdapter } from '../../server/adapter.js';
 import type { ActivityEntry, OfficeEvent, OfficeSnapshot } from '../../shared/contract.js';
-import { createMetadataAdapter } from '../metadata-adapter.js';
+import { createMetadataAdapter, type MetadataReader } from '../metadata-adapter.js';
 import { canonicalizeCwd } from '../observer-normalization.js';
 import { discoverRollouts } from '../rollout-discovery.js';
 import { RolloutReader } from '../rollout-reader.js';
@@ -16,11 +16,13 @@ const merge = (entries: ActivityEntry[]) => {
   return entries.filter(e => !seen.has(e.activityId) && !!seen.add(e.activityId)).sort((a,b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt)).slice(0, 50);
 };
 
-export async function createWindowsActivityAdapter(options: { files: string[]; root?: string; cwds: string[]; pollMs?: number; now?: () => string; nameIndex?: string | null }): Promise<OfficeAdapter> {
+export async function createWindowsActivityAdapter(options: { files: string[]; root?: string; cwds: string[]; pollMs?: number; now?: () => string; nameIndex?: string | null; wrapReader?: (reader: MetadataReader) => MetadataReader }): Promise<OfficeAdapter> {
   const allowed = new Set(options.cwds.map(canonicalizeCwd));
   if (!allowed.size || allowed.has(null)) throw new Error('Invalid activity scope.');
   const normalizer = new RolloutActivityNormalizer('codex-rollout-command-v1', options.now);
   let pending: ActivityEntry[] = [], activityFailed = false;
+  let activityFailureNotified = false;
+  let activeReader: RolloutReader | undefined;
   let pollComplete = () => {};
   const nameIndex = options.nameIndex === undefined ? resolve(process.env.CODEX_HOME ?? resolve(homedir(), '.codex'), 'session_index.jsonl') : options.nameIndex;
   const base = await createMetadataAdapter({ allowedCwds: options.cwds, pollMs: options.pollMs, now: options.now,
@@ -35,7 +37,9 @@ export async function createWindowsActivityAdapter(options: { files: string[]; r
         pending.push(...entries);
       } catch { activityFailed = true; pending = []; }
       });
-      return nameIndex ? withNativeThreadNames(reader, { allowedCwds: options.cwds, readNames: ids => readNativeThreadNames(nameIndex, ids) }) : reader;
+      activeReader = reader;
+      const named = nameIndex ? withNativeThreadNames(reader, { allowedCwds: options.cwds, readNames: ids => readNativeThreadNames(nameIndex, ids) }) : reader;
+      return options.wrapReader ? options.wrapReader(named) : named;
     } });
   const listeners = new Set<(event: OfficeEvent) => void>();
   const queued: OfficeEvent[] = [];
@@ -52,16 +56,23 @@ export async function createWindowsActivityAdapter(options: { files: string[]; r
         state.agents = [...state.agents.filter(a => a.agentId !== event.data.agent.agentId), event.data.agent]; break;
       }
       case 'connection.changed':
-        if (activityFailed) event.data.connection.message = 'Command activity unavailable; reopen Office to retry. Metadata observation continues.';
+        if (activityFailed) { event.data.connection.message = 'Command activity unavailable; reopen Office to retry. Metadata observation continues.'; activityFailureNotified = true; }
         state.connection = event.data.connection; break;
       default: break;
     }
     for (const listener of [...listeners]) try { listener(structuredClone(event)); } catch { /* Isolate consumers. */ }
   }
   function flush() {
-    if (!state || activityFailed) { pending = []; return; }
+    if (!state) return;
+    if (activityFailed && !activityFailureNotified) {
+      activityFailureNotified = true;
+      publish({ protocolVersion:1, bridgeEpoch:epoch, seq:0, eventId:randomUUID(), occurredAt:(options.now ?? (() => new Date().toISOString()))(),
+        source:'codex', type:'connection.changed', agentId:null, data:{ connection:{ ...state.connection, message:'Command activity unavailable; reopen Office to retry. Metadata observation continues.' } } });
+    }
+    if (activityFailed) { pending = []; return; }
     const ready = pending; pending = [];
     for (const activity of ready) {
+      if (!activeReader?.hasVerifiedThread(activity.agentId, allowed)) continue;
       const agent = state.agents.find(a => a.agentId === activity.agentId);
       if (!agent) continue;
       publish({ protocolVersion: 1, bridgeEpoch: epoch, seq: 0, eventId: activity.activityId, occurredAt: activity.occurredAt,
@@ -78,7 +89,6 @@ export async function createWindowsActivityAdapter(options: { files: string[]; r
         data:{connection:{...state.connection,status:'disconnected',message:'Observer event continuity lost; reopen Office.'}}}); return;
     }
     baseSeq = event.seq; publish(event);
-    if (event.type === 'connection.changed' && event.data.connection.status !== 'connected') pending = [];
   }
   const unsubscribe = base.subscribe(fromBase);
   try {
