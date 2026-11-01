@@ -1,0 +1,27 @@
+name: Handoff boundary
+on:
+  push:
+    branches: [codex/s4-handoffs, codex/s4-handoff-normalizer]
+  pull_request:
+    paths:
+      - 'src/office/handoffs/**'
+      - 'src/codex/handoffs/**'
+      - 'tests/manual/handoff-demo.*'
+      - '.github/workflows/handoffs.yml'
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - run: npx tsx --test src/office/handoffs/*.test.ts
+      - run: npx tsx --test src/codex/handoffs/*.test.ts

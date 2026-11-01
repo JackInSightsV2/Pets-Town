@@ -1,0 +1,32 @@
+name: Browser inspection
+
+on:
+  push:
+    branches: [codex/browser-inspection-ci]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  inspection:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run pets:fetch
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e -- tests/browser/inspection.spec.ts
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-inspection-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
