@@ -1,6 +1,6 @@
 /**
  * Manual integration proof only; lane B owns the production adapter.
- * Wire allowlist: initialize, initialized, thread/loaded/list, thread/read.
+ * Wire allowlist: initialize, initialized, thread/loaded/list, thread/read, thread/goal/get.
  * No start/resume/turn/approval/interrupt/config or other control methods exist here.
  * Thread reads always set includeTurns:false; conversation previews are discarded.
  */
@@ -13,8 +13,8 @@ import type { OfficeAdapter } from '../../src/server/adapter.js';
 import { emptySnapshot, unsupported, type OfficeAgent, type OfficeConnection, type OfficeEvent, type OfficeSnapshot, type RuntimeState } from '../../src/shared/contract.js';
 import { builtInPets } from '../../src/shared/pets.js';
 
-type RpcMethod = 'initialize' | 'thread/loaded/list' | 'thread/read';
-const READ_ONLY_METHODS = new Set<RpcMethod>(['initialize', 'thread/loaded/list', 'thread/read']);
+type RpcMethod = 'initialize' | 'thread/loaded/list' | 'thread/read' | 'thread/goal/get';
+const READ_ONLY_METHODS = new Set<RpcMethod>(['initialize', 'thread/loaded/list', 'thread/read', 'thread/goal/get']);
 type JsonObject = Record<string, unknown>;
 const object = (v: unknown): v is JsonObject => v !== null && typeof v === 'object' && !Array.isArray(v);
 const text = (v: unknown): string | null => typeof v === 'string' && v.length > 0 ? v : null;
@@ -152,13 +152,17 @@ export async function createAdapter(): Promise<OfficeAdapter> {
           const t = result.thread;
           const id = text(t.id), cwd = text(t.cwd);
           if (!id || !cwd || !allowedCwds.has(resolve(cwd))) continue;
+          // A thread title/preview is not its current task. Only expose an explicit active goal.
+          const goalResponse = await rpc.call('thread/goal/get', { threadId: id });
+          const goal = object(goalResponse) && object(goalResponse.goal) ? goalResponse.goal : null;
+          const objective = goal?.status === 'active' ? text(goal.objective) : null;
           const parent = text(t.parentThreadId);
           const projectId = text(t.projectId) ?? `cwd:${resolve(cwd)}`;
           if (!state.projects.some(project => project.projectId === projectId)) state.projects.push({ projectId, displayName: basename(cwd), cwd });
           const assetIndex = createHash('sha256').update(id).digest()[0] % builtInPets.length;
           observed.set(id, { agentId: id, parentAgentId: parent, projectId,
             displayName: text(t.agentNickname) ?? text(t.name) ?? `${parent ? 'Subagent' : 'Agent'} ${id.slice(0, 8)}`,
-            role: text(t.agentRole), task: null, runtimeState: runtime(t), activityKind: 'unknown', lastObservedAt: new Date().toISOString(),
+            role: text(t.agentRole), task: objective ? `Goal: ${objective}` : null, runtimeState: runtime(t), activityKind: 'unknown', lastObservedAt: new Date().toISOString(),
             pendingRequestIds: [], petAssetId: builtInPets[assetIndex].assetId, recentActivity: [] });
         }
       }
@@ -175,7 +179,7 @@ export async function createAdapter(): Promise<OfficeAdapter> {
         if (!prior || JSON.stringify(prior) !== JSON.stringify(agent)) emit('agent.upserted', agent.agentId, { agent });
       }
       connection({ status: 'connected', lastObservedAt: new Date().toISOString(),
-        message: 'Live Codex metadata only, polled every 2 seconds. Task activity, request details and handoffs are unavailable.' });
+        message: 'Live Codex metadata only, polled every 2 seconds. Active goals are shown when present; activity, request details and handoffs are unavailable.' });
     } catch (error) {
       if (stopped) return;
       rpc?.close(); rpc = null;

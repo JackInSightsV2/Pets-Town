@@ -2,7 +2,7 @@
 
 A living office for existing Codex agents, launched from Codex CLI into a local browser. Genuine ChatGPT/Codex pets arrive, give a brief standup and reflect real work, requests and handoffs.
 
-**Status:** this branch contains the local bridge, browser office, pet inspection panel, request tracking and development fixtures. The existing-agent adapter and live acceptance remain integration work; the app does not start Codex agents. See the [Track C handoff](docs/track-c.md).
+**Status:** this branch contains the local bridge, browser office, pet inspection panel, request tracking and development fixtures. The existing-agent adapter and live acceptance remain integration work; the app does not start Codex agents. See the [Track C handoff](docs/track-c.md) and [90-second demo runbook](docs/demo-runbook.md).
 
 ![PetsTown office environment](assets/office/office-v1.png)
 
@@ -12,6 +12,7 @@ Use Node.js 22.12 or later, from the repository root:
 
 ```sh
 npm ci
+npm run pets:fetch
 npm run build
 npm run office -- --fixture
 ```
@@ -26,7 +27,7 @@ For a read-only live metadata preview against an already running local Codex dae
 npm run office -- --adapter ./tests/manual/codex-metadata-adapter.ts --port 4319
 ```
 
-This temporary integration adapter shows existing PetsTown agents and runtime status. Task text, request details and handoffs remain unavailable; lane B owns the full observer.
+This temporary integration adapter shows existing PetsTown agents, runtime status and explicitly active goals when present. Activity, request details and handoffs remain unavailable; lane B owns the full observer.
 
 To connect a teammate's observation adapter:
 
