@@ -109,7 +109,7 @@ export function buildVenueSignage() {
       stroke(p, path.map(([x, yy]) => [-length / 2 + (i * .82 + x) * height, y + yy * height]), height * width);
   }
   const b = venueLayout.backdrop;
-  const backdrop = panel("Circle_faces_wall_backdrop", b.x, b.z, b.width, b.height, .09, b.rotation);
+  const backdrop = panel("Freestanding_circle_faces_backdrop", b.x, b.z, b.width, b.height, .09, b.rotation);
   // Staggered multiscale circles follow the photographed wall's colour and expression pattern.
   const circles = [
     [-.48,.94,.11,0],[-.33,.91,.085,3],[-.15,.94,.10,1],[0,.99,.1,3],[.13,.91,.055,5],[.26,.99,.12,2],[.45,.97,.12,4],
@@ -120,6 +120,15 @@ export function buildVenueSignage() {
     [-.05,.54,.027,2],[.48,.85,.025,2],[-.16,.02,.04,5],[.18,.57,.025,5],
   ];
   for (const [x, y, r, kind] of circles) face(backdrop, x * b.width, y * b.height, r * b.width, kind);
+  // Artwork on both sides keeps the freestanding prop readable while orbiting.
+  for (const front of [...backdrop.group.children]) {
+    if (!front.name.startsWith("Printed_")) continue;
+    const reverse = front.clone();
+    reverse.name = `Reverse_${front.name}`;
+    reverse.position.z *= -1;
+    reverse.scale.x = -1;
+    backdrop.group.add(reverse);
+  }
   for (const side of [-1, 1])
     box(backdrop.group, "Backdrop_stabiliser", .12, .035, .5, side * (b.width / 2 - .12), -.055, 0, 0x92948b);
 

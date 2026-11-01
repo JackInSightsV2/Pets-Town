@@ -28,7 +28,9 @@ export const obstacles: Obstacle[] = [
     x: p.x, z: p.z, width: p.depth + 0.15, depth: p.width + 0.15,
   })),
   ...[venueLayout.backdrop, venueLayout.helpSign].map((p) => ({
-    x: p.x, z: p.z, width: 0.5, depth: p.width + 0.1,
+    x: p.x, z: p.z,
+    width: Math.abs(Math.cos(p.rotation)) * (p.width + 0.3) + Math.abs(Math.sin(p.rotation)) * 0.5,
+    depth: Math.abs(Math.sin(p.rotation)) * (p.width + 0.3) + Math.abs(Math.cos(p.rotation)) * 0.5,
   })),
   ...[-6.15, -2.05].map((z) => ({ x: 4.25, z, width: 0.5, depth: 0.7 })),
   ...audienceSeats.map((p) => ({ ...p, width: 0.52, depth: 0.52 })),
