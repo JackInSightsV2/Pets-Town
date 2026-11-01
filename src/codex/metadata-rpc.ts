@@ -1,5 +1,6 @@
 /** Extracted from Jack's manual metadata probe; only reads an existing daemon. */
 import WebSocket from 'ws';
+import { selectObserverNotification, type ObserverNotification } from './observer-notifications.js';
 type RpcMethod = 'initialize' | 'thread/loaded/list' | 'thread/read' | 'thread/goal/get';
 const READ_ONLY_METHODS = new Set<RpcMethod>(['initialize', 'thread/loaded/list', 'thread/read', 'thread/goal/get']);
 type JsonObject = Record<string, unknown>;
@@ -15,12 +16,18 @@ export class MetadataRpcError extends Error {
 
 export class MetadataRpc {
   private nextId = 0;
+  private nativeListeners = new Set<(notification: ObserverNotification) => void>();
   private pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>();
   private constructor(private socket: WebSocket) {
     socket.on('message', bytes => {
       let message: unknown;
       try { message = JSON.parse(bytes.toString()); } catch { return; }
-      // Ignore notifications and unsolicited server requests without retaining their contents.
+      const notification = selectObserverNotification(message);
+      if (notification) {
+        for (const listener of [...this.nativeListeners]) { try { listener(structuredClone(notification)); } catch { /* Consumer isolation. */ } }
+        return;
+      }
+      // Ignore unrecognized notifications and all unsolicited server requests.
       if (!object(message) || typeof message.id !== 'number' || !('result' in message || 'error' in message)) return;
       const pending = this.pending.get(message.id);
       if (!pending) return;
@@ -50,6 +57,11 @@ export class MetadataRpc {
       return rpc;
     } catch (error) { rpc.close(); throw error; }
   }
+  /** Passive only: subscribing sends no RPC and does not resume or attach a thread. Delivery must be verified separately. */
+  subscribeNotifications(listener: (notification: ObserverNotification) => void): () => void {
+    this.nativeListeners.add(listener);
+    return () => { this.nativeListeners.delete(listener); };
+  }
   get connected() { return this.socket.readyState === WebSocket.OPEN; }
   call(method: RpcMethod, params: JsonObject): Promise<unknown> {
     if (method === 'thread/read' && (params.includeTurns !== false || typeof params.threadId !== 'string' || Object.keys(params).some(key => key !== 'threadId' && key !== 'includeTurns'))) return Promise.reject(new Error('Metadata reads require includeTurns:false.'));
@@ -69,5 +81,5 @@ export class MetadataRpc {
     for (const pending of this.pending.values()) { clearTimeout(pending.timer); pending.reject(error); }
     this.pending.clear();
   }
-  close() { this.rejectPending(new Error('Metadata observer stopped.')); this.socket.terminate(); }
+  close() { this.nativeListeners.clear(); this.rejectPending(new Error('Metadata observer stopped.')); this.socket.terminate(); }
 }
