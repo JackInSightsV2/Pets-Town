@@ -1,6 +1,7 @@
 import { open } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
 import type { MetadataReader } from './metadata-adapter.js';
+import { MetadataRpcError } from './metadata-rpc.js';
 
 const READ_CHUNK_BYTES = 64 * 1024;
 // Bound memory per record while accommodating large normal transcript records.
@@ -31,8 +32,9 @@ export class RolloutReader implements MetadataReader {
 
   close(): void { this.connected = false; this.rows.clear(); }
 
-  async call(method: 'thread/loaded/list' | 'thread/read', params: Record<string, unknown>): Promise<unknown> {
+  async call(method: 'thread/loaded/list' | 'thread/read' | 'thread/goal/get', params: Record<string, unknown>): Promise<unknown> {
     if (!this.connected) throw new Error('Reader is closed.');
+    if (method === 'thread/goal/get') throw new MetadataRpcError(-32601);
     if (method === 'thread/loaded/list') {
       if (params.cursor != null) throw new Error('Pagination is not supported.');
       await this.refresh();

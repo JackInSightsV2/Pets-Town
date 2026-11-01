@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import { mkdtemp, writeFile, appendFile, rm, rename } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import { createMetadataAdapter } from './metadata-adapter.js';
 import { RolloutReader } from './rollout-reader.js';
 
 const line = (type: string, payload: unknown) => JSON.stringify({ type, payload }) + '\n';
@@ -108,4 +109,16 @@ test('large historical transcripts and large records use bounded reads and retai
   assert.equal(await status(reader), 'active');
   await appendFile(path, event('task_complete', 'new'));
   assert.equal(await status(reader), 'idle');
+}));
+
+test('synthetic: metadata adapter connects to rollout reader when goals are unsupported', async () => fixture(async path => {
+  const cwd = resolve('synthetic-project');
+  await writeFile(path, line('session_meta', { id: 'synthetic-id', cwd }));
+  const adapter = await createMetadataAdapter({ allowedCwds: [cwd], connect: async () => new RolloutReader([path]) });
+  try {
+    const snapshot = await adapter.initialSnapshot();
+    assert.equal(snapshot.connection.status, 'connected');
+    assert.equal(snapshot.agents.length, 1);
+    assert.equal(snapshot.agents[0].agentId, 'synthetic-id');
+  } finally { adapter.stop(); }
 }));
