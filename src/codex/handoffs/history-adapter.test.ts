@@ -12,6 +12,7 @@ const item = (id: string, to = 'b') => ({ type:'subAgentActivity', kind:'interac
 function harness() {
   const snapshot = emptySnapshot('base');
   snapshot.agents = [agent('a'), agent('b')];
+  snapshot.connection = {status:'connected',lastObservedAt:at,message:null};
   const events: OfficeEvent[] = [];
   let sink:(event: OfficeEvent)=>void = () => {};
   const base: OfficeAdapter = { initialSnapshot:()=>structuredClone(snapshot), subscribe(fn){sink=fn; return()=>{sink=()=>{};};}, stop(){} };
@@ -62,16 +63,24 @@ test('unverified and unreadable source cannot advertise support or emit', async 
   assert.equal((await other.initialSnapshot()).capabilities.observeHandoffs.supported,false);
 });
 
-test('late readable threads and reconnect history are seeded without meetings',async t=>{
-  const h=harness(); h.fail('a'); const adapter=await setup(h); t.after(()=>adapter.stop());
-  h.items.set('a',[item('old'),item('while-unreadable')]); h.recover('a'); await delay();
-  assert.equal(h.events.filter(e=>e.type==='handoff.observed').length,0);
-  h.items.set('a',[item('old'),item('while-unreadable'),item('fresh')]); await delay();
+test('reconnect history is seeded without meetings',async t=>{
+  const h=harness(); const adapter=await setup(h); t.after(()=>adapter.stop());
+  h.items.set('a',[item('old'),item('fresh')]); await delay();
   assert.equal(h.events.filter(e=>e.type==='handoff.observed').length,1);
-  h.reconnect(); h.items.set('a',[item('old'),item('while-unreadable'),item('fresh'),item('during-disconnect')]); await delay();
+  h.reconnect(); h.items.set('a',[item('old'),item('fresh'),item('during-disconnect')]); await delay();
   assert.equal(h.events.filter(e=>e.type==='handoff.observed').length,1);
-  h.items.set('a',[item('old'),item('while-unreadable'),item('fresh'),item('during-disconnect'),item('after')]); await delay();
+  h.items.set('a',[item('old'),item('fresh'),item('during-disconnect'),item('after')]); await delay();
   assert.equal(h.events.filter(e=>e.type==='handoff.observed').length,2);
+});
+
+test('reader failure marks source unavailable and never emits later history',async t=>{
+  const h=harness(); const adapter=await setup(h); t.after(()=>adapter.stop());
+  h.fail('a'); await delay();
+  const snapshot=await adapter.initialSnapshot();
+  assert.equal(snapshot.capabilities.observeHandoffs.supported,false);
+  assert.equal(snapshot.connection.status,'disconnected');
+  h.recover('a'); h.items.set('a',[item('old'),item('missed')]); await delay();
+  assert.equal(h.events.filter(e=>e.type==='handoff.observed').length,0);
 });
 
 test('unscoped recipient stays unavailable even if it later joins roster',async t=>{
