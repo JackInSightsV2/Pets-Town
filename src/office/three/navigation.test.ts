@@ -7,12 +7,16 @@ import {
   createVenuePlacement,
   nearestFloor,
 } from "./navigation";
-test("routes from the entrance to desks and cooler stay on clear floor", () => {
+test("routes reach desks, the new rear tables, help desk and cooler on clear floor", () => {
   for (const destination of [
     { x: -7.5, z: -3.5 },
     ...meetingPoints,
     { x: 4.6, z: 4.9 },
     { x: -4, z: -6 },
+    { x: -6.35, z: -5.75 },
+    { x: -4.8, z: -6.9 },
+    { x: 5.75, z: 5.8 },
+    { x: 2.5, z: -1.8 },
   ]) {
     const path = floorPath({ x: -8.7, z: 0.4 }, destination);
     assert.ok(path.length > 1);

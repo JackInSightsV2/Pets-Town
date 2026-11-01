@@ -2,6 +2,7 @@ import * as T from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { desks } from "./navigation";
 import { venueLayout, insideVenue, audienceSeats } from "./layout";
+import { buildVenueSignage } from "./signage";
 
 /** Editable reconstruction of the illustrated scan study. No photographic assets. */
 export function buildVenue() {
@@ -557,7 +558,7 @@ export function buildVenue() {
     }
   }
   speaker(4.65, -6.25, -Math.PI / 2);
-  speaker(4.65, -1.8, -Math.PI / 2);
+  speaker(2.85, -2.2, -Math.PI / 2);
   speaker(7.6, 6.5);
   // Leaf clusters use thin tapered leaves and visible stems, not oversized round blobs.
   const leafGeo = new T.SphereGeometry(1, 7, 5);
@@ -796,7 +797,10 @@ export function buildVenue() {
     handle.position.set(x + 0.055, 0.94, z);
   }
   desks.forEach((p, i) => {
-    const g = group(`Measured_worktable_${i + 1}`, p.x, p.z, p.rotation);
+    const name = i < venueLayout.tables.length
+      ? `Measured_worktable_${i + 1}`
+      : `Added_rear_left_worktable_${i - venueLayout.tables.length + 1}`;
+    const g = group(name, p.x, p.z, p.rotation);
     g.scale.y = 0.88;
     box(
       "Shared_table_top",
@@ -955,13 +959,32 @@ export function buildVenue() {
     [-1.6, -8.25, 0.85],
     [2.6, -8.6, 1],
     [4.35, -7.2, 0.8],
-    [4.4, -0.4, 0.75],
     [7.5, 1.75, 0.9],
     [7.4, 4.2, 0.7],
-    [-7.6, -4.2, 0.65],
     [-5.15, 6.5, 0.8],
     [-3, 6.45, 0.7],
   ])
     plant(x, z, size);
+  room.add(buildVenueSignage());
+  for (const [name, p] of [
+    ["Help_desk", venueLayout.helpDesk],
+    ["Stage_AV_desk", venueLayout.stageDesk],
+  ] as const) {
+    const g = group(name, p.x, p.z, p.rotation);
+    box("Black_desk_top", p.width, 0.07, p.depth, 0, 0.9, 0, 0x303331, g);
+    box("Black_desk_front", p.width, 0.85, 0.055, 0, 0.44, p.depth / 2, 0x282c2b, g);
+    for (const side of [-1, 1]) {
+      box("Desk_side_panel", 0.055, 0.85, p.depth, side * p.width / 2, 0.44, 0, 0x323633, g);
+      box("Desk_front_frame", 0.045, 0.88, 0.075, side * (p.width / 2 - 0.035), 0.45, p.depth / 2, 0x171c1b, g);
+    }
+    // The photographs show black portable desks with laptops and mesh upper panels.
+    for (let y = 0.63; y < 0.84; y += 0.045)
+      box("Desk_grille", p.width - 0.12, 0.013, 0.012, 0, y, p.depth / 2 + 0.032, 0x636760, g, 0, false);
+    const devices = new T.Group();
+    devices.position.y = 0.075;
+    g.add(devices);
+    laptop(-p.width * 0.18, -0.03, Math.PI, devices);
+    if (name === "Help_desk") laptop(p.width * 0.24, -0.03, Math.PI, devices);
+  }
   return { room, walls };
 }

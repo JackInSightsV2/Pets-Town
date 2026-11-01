@@ -18,6 +18,16 @@ The private scan was inspected in an orthographic overhead view after a −53° 
 
 The right wing starts near (4.8, 1.1) and extends to X≈7.9. This replaces the much larger wing in the first attempt. The left counter, wing equipment bench and angled equipment island follow visible scan clusters. The near-stage central area contains audience chairs, not worktables.
 
+## Photo-informed event fixtures — 1 November 2026
+
+Six private venue photos in Game of Coins Drive's Codex Hackathon folder supplied the signage and desk references. The photos remain outside the repository. Signs use editable geometry, including lettering and clipped circle-face artwork, so the room export contains no photographic textures or people.
+
+Facing the stage means looking along +X; stage-right is +Z. The wide ivory backdrop with purple, blue, green, orange, black and pale circle faces sits against the stage wall, to the right of the stage, centred at (4.52, −0.20). Two narrow OpenAI roll-ups flank the screen. A black AV desk sits next to the stage at (3.60, −1.80).
+
+The right wing contains the black help desk at (6.65, 5.80), with the cream HELP DESK sign on a freestanding frame behind it at (7.45, 5.80). These positions interpret Elliott's placement instructions within the traced floor plan; the photographs do not provide surveyed coordinates. The banner artwork is a stylised reconstruction of the photographed designs.
+
+Two requested additional worktables occupy the rear-left corner at (−6.35, −6.90) and (−6.35, −4.65). Both have a 2.15 × 0.80 footprint. They are stored separately from the six scan-traced tables. Navigation includes the new tables, desks and sign stands and preserves access to the help desk and rear work area.
+
 ## Uncertainty and style additions
 
 - The northwest boundary is incomplete. Its missing portions are closed approximately between observed edges. Large foreground floor holes are filled; they are scan gaps, not asserted openings in the actual floor.

@@ -1,5 +1,5 @@
 import { venueLayout, insideVenue, audienceSeats } from "./layout";
-/** Approximate venue geometry, rebuilt from a private scan reference. Units are metres. */
+/** Approximate venue geometry in uncalibrated source scan units. */
 export interface FloorPoint {
   x: number;
   z: number;
@@ -10,7 +10,7 @@ export interface Obstacle {
   width: number;
   depth: number;
 }
-export const desks = venueLayout.tables;
+export const desks = [...venueLayout.tables, ...venueLayout.extraTables];
 export const obstacles: Obstacle[] = [
   ...desks.map((p) => ({
     x: p.x,
@@ -24,6 +24,13 @@ export const obstacles: Obstacle[] = [
   { x: 6.5, z: 1.55, width: 2.8, depth: 0.85 },
   { x: 6.9, z: 2.9, width: 1.25, depth: 1.25 },
   { x: 5.65, z: 2.25, width: 0.6, depth: 0.6 },
+  ...[venueLayout.helpDesk, venueLayout.stageDesk].map((p) => ({
+    x: p.x, z: p.z, width: p.depth + 0.15, depth: p.width + 0.15,
+  })),
+  ...[venueLayout.backdrop, venueLayout.helpSign].map((p) => ({
+    x: p.x, z: p.z, width: 0.5, depth: p.width + 0.1,
+  })),
+  ...[-6.15, -2.05].map((z) => ({ x: 4.25, z, width: 0.5, depth: 0.7 })),
   ...audienceSeats.map((p) => ({ ...p, width: 0.52, depth: 0.52 })),
 ];
 export function walkable(p: FloorPoint, margin = 0.16): boolean {
@@ -109,6 +116,8 @@ export function createVenuePlacement() {
     { x: 0.3, z: 4.9 },
     { x: 4.6, z: 4.9 },
     { x: 1.8, z: 0 },
+    { x: -6.35, z: -7.6 },
+    { x: -6.35, z: -5.75 },
   ];
   return {
     homes,

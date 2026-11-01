@@ -81,6 +81,16 @@ export const venueLayout = {
       rotation: 0,
     },
   ],
+  // Requested additions: these do not replace the six scan-traced tables.
+  extraTables: [
+    { x: -6.35, z: -6.9, width: 0.8, length: 2.15, rotation: Math.PI / 2 },
+    { x: -6.35, z: -4.65, width: 0.8, length: 2.15, rotation: Math.PI / 2 },
+  ],
+  // Photo-informed fixtures; placement follows Elliott's stage-facing directions.
+  backdrop: { x: 4.52, z: -0.2, width: 2.55, height: 1.95, rotation: -Math.PI / 2 },
+  helpDesk: { x: 6.65, z: 5.8, width: 1.65, depth: 0.75, rotation: -Math.PI / 2 },
+  helpSign: { x: 7.45, z: 5.8, width: 1.85, height: 0.54, rotation: -Math.PI / 2 },
+  stageDesk: { x: 3.6, z: -1.8, width: 0.9, depth: 0.7, rotation: -Math.PI / 2 },
 };
 export const audienceSeats = [-0.65, 0.7].flatMap((x) =>
   [-6.35, -5.7, -5.05, -4.4, -3.75].map((z) => ({ x, z })),
