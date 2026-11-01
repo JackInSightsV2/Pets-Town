@@ -1,6 +1,6 @@
 # PetsTown implementation handoff
 
-This is the entry point for `to-issues`. The user has approved the nine-slice breakdown, dependencies and three owner lanes. GitHub publication is in progress.
+The user approved the nine-slice breakdown, dependencies and three owner lanes. All nine issues are [published on GitHub](https://github.com/JackInSightsV2/Pets-Town/issues), with native blocked-by relationships. The [issue mapping](.claude/epics/petstown-hackathon/github-mapping.md) links the approved slices to the tracker.
 
 ## Agreed outcome
 
@@ -35,15 +35,15 @@ B leads the first live baseline, with A/C contributing the minimum asset and she
 
 | ID | Complete vertical slice | Type | Lead | Blocked by | Stories |
 | --- | --- | --- | --- | --- | --- |
-| S1 | Open Office and see one existing agent as a genuine pet | HITL | B | None | US01, US03, US08 |
-| S2 | Start the day, arrivals, standup and activity-driven locations | AFK | A | S1 | US02, US03, US09 |
-| S3 | Click a pet to inspect live work and requests | AFK | C | S1 | US05, US07, US08 |
-| S4 | Observe a real handoff and animate the water-cooler meeting | AFK | B | S1 | US06, US09 |
-| S5 | Readable project areas, optional subagents and hidden attention | AFK | A | S2, S3 | US04, US07 |
-| S6 | Reproducible, resilient 90-second live office on the demo Mac | HITL | C | S4, S5 | US01–US06, US08–US09 |
-| S7 | Resolve an existing agent request from its pet panel | HITL | B | S6 | US07 |
-| S8 | Optional voice for factual pet updates | AFK | C | S7 | US10 |
-| S9 | Inspect an associated live computer view | HITL | C | S8 | US11 |
+| [S1 / #1](https://github.com/JackInSightsV2/Pets-Town/issues/1) | Open Office and see one existing agent as a genuine pet | HITL | B | None | US01, US03, US08 |
+| [S2 / #2](https://github.com/JackInSightsV2/Pets-Town/issues/2) | Start the day, arrivals, standup and activity-driven locations | AFK | A | [S1 / #1](https://github.com/JackInSightsV2/Pets-Town/issues/1) | US02, US03, US09 |
+| [S3 / #3](https://github.com/JackInSightsV2/Pets-Town/issues/3) | Click a pet to inspect live work and requests | AFK | C | [S1 / #1](https://github.com/JackInSightsV2/Pets-Town/issues/1) | US05, US07, US08 |
+| [S4 / #4](https://github.com/JackInSightsV2/Pets-Town/issues/4) | Observe a real handoff and animate the water-cooler meeting | AFK | B | [S1 / #1](https://github.com/JackInSightsV2/Pets-Town/issues/1) | US06, US09 |
+| [S5 / #5](https://github.com/JackInSightsV2/Pets-Town/issues/5) | Readable project areas, optional subagents and hidden attention | AFK | A | S2, S3 | US04, US07 |
+| [S6 / #6](https://github.com/JackInSightsV2/Pets-Town/issues/6) | Reproducible, resilient 90-second live office on the demo Mac | HITL | C | S4, S5 | US01–US06, US08–US09 |
+| [S7 / #7](https://github.com/JackInSightsV2/Pets-Town/issues/7) | Resolve an existing agent request from its pet panel | HITL | B | [S6 / #6](https://github.com/JackInSightsV2/Pets-Town/issues/6) | US07 |
+| [S8 / #8](https://github.com/JackInSightsV2/Pets-Town/issues/8) | Optional voice for factual pet updates | AFK | C | [S7 / #7](https://github.com/JackInSightsV2/Pets-Town/issues/7) | US10 |
+| [S9 / #9](https://github.com/JackInSightsV2/Pets-Town/issues/9) | Inspect an associated live computer view | HITL | C | [S8 / #8](https://github.com/JackInSightsV2/Pets-Town/issues/8) | US11 |
 
 HITL identifies an actual integration or human validation gate. AFK slices still require tests and observable acceptance; it does not mean evidence-free completion. S7–S9 include deliberate product-priority dependencies, identified in the epic.
 
@@ -69,9 +69,9 @@ Prepare the cohort and a real exchange before presenting. If the runtime does no
 - [x] Proposed contract and nine independently verifiable slices documented.
 - [x] Repository and issue tracker identified; GitHub Issues enabled.
 - [x] User approves granularity, blockers and HITL/AFK classification.
-- [ ] Publish an initial agreed docs/assets snapshot so teammates can access the same source; exclude personal editor settings.
-- [ ] Create needs-triage if still missing, then publish slices in dependency order.
-- [ ] Replace planning blocker IDs with actual issue links and retain the lane in each issue.
+- [x] Publish an initial agreed docs/assets snapshot so teammates can access the same source; exclude personal editor settings.
+- [x] Create needs-triage if still missing, then publish slices in dependency order.
+- [x] Replace planning blocker IDs with actual issue links and retain the lane in each issue.
 - [ ] Teammates claim issues; do not assign unspecified GitHub handles.
 
-No implementation, source commit, plugin installation or live office connection is claimed by this planning handoff.
+The documentation/assets snapshot and nine issues are published. No application implementation, plugin installation or live office connection is claimed by this handoff.

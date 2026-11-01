@@ -2,7 +2,7 @@
 name: petstown-hackathon
 status: backlog
 created: 2026-11-01T12:49:59Z
-updated: 2026-11-01T12:49:59Z
+updated: 2026-11-01T13:05:05Z
 progress: 0%
 prd: .claude/prds/petstown-hackathon.md
 ---
@@ -64,7 +64,7 @@ Before fan-out, all three align on contract v1 and the first real trace. Then A 
 - Everything runs on one Mac. No hosted service is needed for the first checkpoint.
 - Existing agency renderer code is a selective reuse candidate; retain applicable attribution.
 - Current repository contains documentation and a generated environment only. Do not assume an existing app scaffold.
-- The repo currently has no commits. Publish an initial agreed documentation/assets snapshot before teammates start branches or worktrees. Exclude personal .vscode settings.
+- The initial agreed documentation/assets snapshot is published on main. Teammates can branch from it; personal .vscode settings remain excluded.
 - Prepare the three demo agents outside PetsTown; neither the launcher nor Start the day creates work.
 
 ## Approved vertical slices
@@ -258,8 +258,8 @@ Suggested initial allocation: jointly prove one live pet and the contract, then 
 
 ## Publication and acceptance boundaries
 
-The tracker is JackInSightsV2/Pets-Town on GitHub; Issues are enabled. needs-triage was absent on inspection and must be created at publication if still absent. Do not invent existing issue numbers or parent links.
+The tracker is JackInSightsV2/Pets-Town on GitHub. All nine approved issues are published with needs-triage, owner-lane and HITL/AFK labels; native blocked-by relationships were created and read back. See [github-mapping.md](github-mapping.md) for the issue URLs. No parent issue was required because the source is this repository plan.
 
-The user invoked to-issues and approved the concrete slice breakdown. Publish in dependency order, use real issue identifiers for blockers, and include each slice's scope, acceptance, stories, owner lane and evidence boundary. Do not silently assign guessed GitHub users.
+The user invoked to-issues and approved the concrete slice breakdown. Each issue includes its scope, acceptance criteria, stories, owner lane and evidence boundary. Individual assignees remain unset until teammates claim their work.
 
 Implementation acceptance requires observed behavior. A generated image, compiling code, a fixture replay or a package folder alone is not proof of a working live office.

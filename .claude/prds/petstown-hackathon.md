@@ -3,6 +3,7 @@ name: petstown-hackathon
 description: A presenter-controlled pet office that visualizes existing Codex agents and real collaboration.
 status: backlog
 created: 2026-11-01T12:49:59Z
+updated: 2026-11-01T13:05:05Z
 ---
 
 # PRD: PetsTown hackathon
@@ -69,7 +70,7 @@ Stretch checkpoints: voice first, then a live computer view. All original L1-L3 
 - Three teammates; responsibility is assigned by role until people claim slices.
 - Colleague self-selected the Codex integration workstream.
 - The shared discussion describes a five-hour build budget, not a verified current deadline.
-- This checkout has no implementation or commits yet. There is a generated office PNG plus documentation.
+- The repository contains the published documentation and generated office PNG; application implementation has not started.
 - Existing renderer code in the user's agency repository is a candidate for selective reuse, not a pre-integrated dependency.
 - Genuine asset retrieval and cross-client observation/replies are not yet proven.
 - ImageGen 2.5 was requested for the environment; the available built-in tool did not expose version selection.
