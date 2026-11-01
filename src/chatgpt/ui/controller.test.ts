@@ -34,3 +34,32 @@ test('host refresh applies ordered live events without replaying the accompanyin
   assert.equal(calls, 2); controller.stop();
 });
 
+test('hidden in-flight refresh is discarded and reopening requests a baseline', async () => {
+  const initial = snapshot(); const view = officeView(initial, ['/project']);
+  const result = (office: object) => ({ _meta: { office } });
+  let visibility = () => {}; let resolveFirst!: (value: unknown) => void;
+  const args: Record<string, unknown>[] = [];
+  const host = { connect: async () => {}, close: async () => {}, getHostCapabilities: () => ({ serverTools: {} }),
+    callServerTool: async (call: { arguments: Record<string, unknown> }) => {
+      args.push(call.arguments);
+      if (args.length === 1) return new Promise(resolve => { resolveFirst = resolve; });
+      return result({ ...view, snapshot: { ...view.snapshot, lastSeq: 1 }, refresh: { mode: 'baseline' } });
+    } } as unknown as App;
+  const doc = { hidden: false, addEventListener: (_: string, fn: () => void) => { visibility = fn; }, removeEventListener() {} };
+  Object.assign(globalThis, { window: { parent: {}, addEventListener() {}, removeEventListener() {} }, document: doc });
+  const controller = createEmbeddedController(host);
+  host.ontoolresult!(result(view) as never); await controller.connect();
+  const pending = controller.refresh();
+  doc.hidden = true; visibility();
+  doc.hidden = false; visibility();
+  resolveFirst(result({ ...view, snapshot: { ...view.snapshot, lastSeq: 1 }, refresh: { mode: 'events', events: [] } }));
+  await pending;
+  assert.equal(controller.store.getState().snapshot?.lastSeq, 0);
+  assert.equal(controller.store.getState().transport.status, 'reconnecting');
+  await controller.refresh();
+  assert.equal(args[1].cursor, undefined);
+  assert.equal(controller.store.getState().snapshot?.lastSeq, 1);
+  assert.equal(controller.store.getState().transport.status, 'connected');
+  controller.stop();
+});
+

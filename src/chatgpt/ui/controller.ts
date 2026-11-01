@@ -32,6 +32,7 @@ export function createEmbeddedController(app = new HostApp({ name: 'PetsTown', v
     const office = result._meta.office;
     const refresh = office.refresh;
     if (record(refresh) && refresh.mode === 'events') {
+      if (store.getState().transport.status !== 'connected') return baseline(result);
       const current = store.getState().snapshot;
       const next = readOfficeView(result);
       if (!view || !current || !next || next.scopeId !== view.scopeId || !Array.isArray(refresh.events)
@@ -64,7 +65,7 @@ export function createEmbeddedController(app = new HostApp({ name: 'PetsTown', v
   app.ontoolresult = result => { if (!stopped) { generation++; if (!baseline(result, true)) store.setTransportStatus('disconnected'); schedule(); } };
   app.onhostcontextchanged = ctx => { if (ctx.theme) applyDocumentTheme(ctx.theme); if (ctx.styles?.variables) applyHostStyleVariables(ctx.styles.variables); };
   app.onerror = () => { if (!stopped) store.setTransportStatus('disconnected'); };
-  const visibility = () => { clearTimeout(timer); if (document.hidden) store.setTransportStatus('reconnecting'); else void refresh(); };
+  const visibility = () => { clearTimeout(timer); if (document.hidden) { generation++; store.setTransportStatus('reconnecting'); } else void refresh(); };
   async function connect() {
     if (window.parent === window) { store.setTransportStatus('disconnected'); return; }
     document.addEventListener('visibilitychange', visibility);

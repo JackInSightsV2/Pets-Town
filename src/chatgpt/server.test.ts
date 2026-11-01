@@ -40,6 +40,16 @@ test('projection excludes other projects, control tokens, paths and unknown fiel
   assert.ok(officeView(input, ['/project']).snapshot.agents[0].pendingRequestIds.includes('details-unavailable'));
 });
 
+test('lifecycle snapshot strips unrecognized observer fields', () => {
+  const input = snapshot();
+  input.latestTurns = [{ agentId: 'main', turnId: `turn-v1-${'a'.repeat(64)}`, sourceEventId: `turn-event-v1-${'b'.repeat(64)}`,
+    status: 'started', source: 'fixture', delivery: 'history', occurredAt: '2026-11-01T13:00:00Z', startedAt: 1 }];
+  Object.assign(input.latestTurns[0], { privateExtension: 'DO_NOT_SHARE' });
+  const projected = officeView(input, ['/project']);
+  assert.equal(JSON.stringify(projected).includes('DO_NOT_SHARE'), false);
+  assert.equal(projected.snapshot.latestTurns?.[0].status, 'started');
+});
+
 test('MCP initialize, resource, tools, live refresh, restart rejection and read-only contract', async () => {
   let current = snapshot();
   current.agents[0].petAssetId = 'codex';

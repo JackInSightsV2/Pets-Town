@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { event, snapshot, time } from '../client/test-helpers.js';
+import { agent, event, snapshot, time } from '../client/test-helpers.js';
 import { projectEvents } from './events.js';
 
 const cursor = { bridgeEpoch: 'epoch-a', lastSeq: 0, source: 'fixture' as const };
@@ -16,6 +16,15 @@ test('continuous scoped observations preserve ordered source evidence', () => {
   const result = projectEvents(source, current, cursor)!;
   assert.deepEqual(result.map(row => row.seq), [1, 2, 3, 4]);
   assert.deepEqual(result[2].data, { observation: turn });
+});
+
+test('handoff replay retains the scoped sender and rejects a mismatched envelope', () => {
+  const current = snapshot(1); current.agents.push(agent('recipient'));
+  const handoff = { handoffId: 'handoff', fromAgentId: 'main', toAgentId: 'recipient', summary: 'done', occurredAt: time, sourceItemId: 'source' };
+  current.recentHandoffs = [handoff];
+  const observed = event(1, 'handoff.observed', { handoff });
+  assert.equal(projectEvents([observed], current, cursor)?.[0].agentId, 'main');
+  assert.equal(projectEvents([{ ...observed, agentId: 'recipient' }], current, cursor), null);
 });
 
 test('missing, unsafe, source changed, and reconnect evidence requires a baseline', () => {

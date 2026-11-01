@@ -62,7 +62,9 @@ export function officeView(input: OfficeSnapshot, allowedCwds: readonly string[]
     recentHandoffs: input.recentHandoffs.filter(h => ids.has(h.fromAgentId) && ids.has(h.toAgentId)).slice(0, 20)
       .map(h => ({ handoffId: h.handoffId, fromAgentId: h.fromAgentId, toAgentId: h.toAgentId,
         summary: clip(h.summary, 600)!, occurredAt: h.occurredAt, sourceItemId: h.sourceItemId })),
-    latestTurns: (input.latestTurns ?? []).filter(turn => ids.has(turn.agentId)),
+    latestTurns: (input.latestTurns ?? []).filter(turn => ids.has(turn.agentId))
+      .map(({ agentId, turnId, sourceEventId, status, source, delivery, occurredAt, startedAt }) =>
+        ({ agentId, turnId, sourceEventId, status, source, delivery, occurredAt, startedAt })),
     petAssets: structuredClone(builtInPets),
   };
   return { snapshot, scopeId, selectedAgentId: filter.agentId ?? null, projectId: filter.projectId ?? null };

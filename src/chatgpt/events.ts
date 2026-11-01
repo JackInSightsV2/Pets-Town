@@ -31,8 +31,9 @@ export function projectEvents(events: OfficeEvent[] | null, snapshot: OfficeSnap
     }
     if (event.type === 'handoff.observed') {
       const handoff = snapshot.recentHandoffs.find(row => row.handoffId === event.data.handoff.handoffId);
-      if (!handoff || !ids.has(handoff.fromAgentId) || !ids.has(handoff.toAgentId)) return null;
-      projected.push({ ...envelope, agentId: null, type: event.type, data: { handoff } });
+      if (!handoff || !ids.has(handoff.fromAgentId) || !ids.has(handoff.toAgentId)
+        || event.agentId !== handoff.fromAgentId || event.data.handoff.fromAgentId !== handoff.fromAgentId) return null;
+      projected.push({ ...envelope, agentId: handoff.fromAgentId, type: event.type, data: { handoff } });
       continue;
     }
     if (!event.agentId || !ids.has(event.agentId)) return null;
