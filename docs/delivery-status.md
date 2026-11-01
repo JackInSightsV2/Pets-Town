@@ -1,6 +1,6 @@
 # Reconciled delivery status — 2026-11-01
 
-This record reconciles GitHub issues, merged implementation and recorded acceptance evidence. The latest #33 revision (0248d69) makes the office fullscreen, enters live placement automatically, shows details in a pet popup and removes the ceremony/group controls. Those original #2/#3/#5/#6 criteria are superseded or unresolved, not passed by this UI. Source/transport loss is shown as Last observed only inside an open popup; the global status banner is gone.
+This record reconciles GitHub issues, merged implementation and recorded acceptance evidence. The latest #33 revision (0248d69) makes the office fullscreen, enters live placement automatically, shows details in a pet popup and removes the ceremony/group controls. The user has accepted the fullscreen scope for #5. Original #2/#3/#6 criteria remain superseded or unresolved, not passed by this UI. Source/transport loss is shown as Last observed only inside an open popup; the global status banner is gone.
 
 The integration brings PRs #28, #32, #33, #35, #36, #37 and #38 onto main. PR #31 is superseded by #30 and must not be merged. Earlier merge holds in PR descriptions are superseded by the user's instruction to reconcile and merge.
 
@@ -12,13 +12,13 @@ The integration brings PRs #28, #32, #33, #35, #36, #37 and #38 onto main. PR #3
 | #2 Office choreography | In progress | Earlier live ceremony evidence; current UI auto-enters desks/idle rest | Reconcile ceremony removal, detailed activity locations, verified completion celebration and final prop/geometry/path review |
 | #3 Inspection | In progress | Pet selection, available task/latest activity, popup staleness; Open chat action | Exact real pending request/resolution, native deep-link activation and revised missing-detail/reply wording |
 | #4 Handoff meetings | In progress; real source path recorded | Real correlated message drives pair meeting/return; queue, cancellation and replay checks | Final environment composition with #2 |
-| #5 Project/subagent mapping | Reopened | Stable allocation and overflow remain; all observed children render | Fullscreen #33 removes group expansion/hiding, roster and project identity display; reconcile those original acceptance criteria |
+| #5 Project/subagent mapping | Closed; fullscreen scope accepted | Stable allocation and overflow, all observed children visible, pet details and attention | None for the revised scope; user accepted removal of roster, labels and group controls |
 | #6 Resilient demo | In progress | Launcher/reuse, live loop/runbook, Mac diagnostic helper | Teammate launch, final environment, timed 90-second rehearsal and full live failure/recovery checks |
 | #7 In-office responses | In progress; capability blocked | Correlation groundwork and aggregate waiting-state diagnostic | Supported passive exact request access/ownership and real response proof; Open chat does not satisfy this |
 | #8 Voice | Open; stretch | No implementation | #7 checkpoint and live audio validation |
 | #9 Computer view | Open; stretch | No implementation | #8 checkpoint and supported agent/view association |
 
-No slice is currently accepted closed: 0/9, after reopening #5 for the latest fullscreen scope change. This is an acceptance count, not a code-completion estimate. The numbered task records and GitHub checklists distinguish partial delivery from acceptance.
+One slice is accepted closed: 1/9 (11%, rounded down), following explicit user acceptance of fullscreen scope for #5. This is an acceptance count, not a code-completion estimate. The numbered task records and GitHub checklists distinguish partial delivery from acceptance.
 
 ## Evidence boundaries
 

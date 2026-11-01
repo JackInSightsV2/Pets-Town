@@ -2,14 +2,14 @@
 name: petstown-hackathon
 status: in-progress
 created: 2026-11-01T12:49:59Z
-updated: 2026-11-01T15:22:43Z
-progress: 0%
+updated: 2026-11-01T15:29:02Z
+progress: 11%
 prd: .claude/prds/petstown-hackathon.md
 ---
 
 # Epic: PetsTown hackathon
 
-Current delivery status: [reconciled acceptance and integration record](../../../docs/delivery-status.md). Progress is 0 of 9 currently accepted slices after reopening #5 for the fullscreen scope change; this is not an implementation percentage. Numbered task files contain current checklists; the slice descriptions below preserve the original plan.
+Current delivery status: [reconciled acceptance and integration record](../../../docs/delivery-status.md). Progress is 1 of 9 accepted slices after user acceptance of fullscreen scope for #5; this is not an implementation percentage. Numbered task files contain current checklists; the slice descriptions below preserve the original plan.
 
 ## Overview
 
