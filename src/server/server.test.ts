@@ -112,3 +112,53 @@ test('a project discovered after bootstrap reaches the browser store through SSE
     assert.deepEqual(latest.projects, [project]);
   } finally { await reader.cancel(); }
 });
+
+test('capability loss/recovery reaches snapshot and SSE while replies stay disabled and malformed updates are rejected', async t => {
+  const a = adapter(); const server = await createOfficeServer({ adapter: a.source });
+  t.after(() => server.close());
+  a.emit(event('request.opened', { request: { requestId: 'pending', agentId: 'real-agent', kind: 'user-input', prompt: 'Synthetic question',
+    options: [], createdAt: '2026-11-01T13:00:00Z', responseCapability: { supported: true, reason: null }, revision: null } }));
+  const initial = await (await fetch(server.url + '/api/office')).json();
+  const store = createOfficeStore(initial);
+  for (const supported of [true, false, true]) {
+    const capabilities = { observeAgents: { supported: true, reason: null },
+      observeHandoffs: { supported, reason: supported ? null : 'History unavailable.' }, respondToRequests: { supported: true, reason: null } };
+    a.emit({ ...event('capabilities.changed', { capabilities }), agentId: null });
+    const current = await (await fetch(server.url + '/api/office')).json();
+    assert.deepEqual(current.capabilities.observeHandoffs, capabilities.observeHandoffs);
+    assert.equal(current.capabilities.respondToRequests.supported, false);
+    assert.equal(current.pendingRequests[0].requestId, 'pending');
+    assert.equal(current.pendingRequests[0].responseCapability.supported, false);
+    assert.equal(capabilities.respondToRequests.supported, true);
+  }
+  const response = await fetch(server.url + `/api/events?cursor=${initial.bridgeEpoch}:${initial.lastSeq}`, { signal: AbortSignal.timeout(3000) });
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder(); let buffer = ''; const observed: boolean[] = [];
+  try {
+    while (observed.length < 3) {
+      const chunk = await reader.read(); assert.equal(chunk.done, false);
+      buffer += decoder.decode(chunk.value, { stream: true });
+      let boundary: number;
+      while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+        const frame = buffer.slice(0, boundary); buffer = buffer.slice(boundary + 2);
+        const line = frame.split('\n').find(line => line.startsWith('data: '));
+        if (!line) continue;
+        const delivered: unknown = JSON.parse(line.slice(6)); assert.ok(isOfficeEvent(delivered));
+        store.applyEvent(delivered);
+        if (delivered.type === 'capabilities.changed') {
+          assert.equal(delivered.agentId, null);
+          assert.equal(delivered.data.capabilities.respondToRequests.supported, false);
+          observed.push(store.getState().snapshot!.capabilities.observeHandoffs.supported);
+        }
+      }
+    }
+  } finally { await reader.cancel(); }
+  assert.deepEqual(observed, [true, false, true]);
+  const before = await (await fetch(server.url + '/api/office')).json();
+  a.emit({ ...event('capabilities.changed', { capabilities: { observeAgents: { supported: true, reason: null } } }), agentId: null });
+  a.emit(event('capabilities.changed', { capabilities: before.capabilities }));
+  const after = await (await fetch(server.url + '/api/office')).json();
+  assert.deepEqual(after.capabilities, before.capabilities);
+  assert.deepEqual(after.pendingRequests, before.pendingRequests);
+  assert.equal((await (await fetch(server.url + '/api/health')).json()).adapterErrors, 2);
+});

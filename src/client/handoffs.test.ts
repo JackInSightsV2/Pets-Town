@@ -69,3 +69,29 @@ test('handoff store delivers once, publishes stable queue state, and cancels saf
   store.setVisibleAgents([]);
   assert.equal(meetingUpdates, notifications);
 });
+
+
+test('capability loss cancels meetings and recovery does not replay cancelled handoffs', () => {
+  const store = createHandoffStore();
+  const initial = snapshot();
+  initial.agents = [agent(), agent('child')];
+  initial.presentation = { state: 'live', canSkip: false };
+  initial.capabilities.observeHandoffs = { supported: true, reason: null };
+  store.setVisibleAgents(['main', 'child']);
+  store.applySnapshot(initial);
+  store.applyEvent(observed(1, 'active'));
+  const cancelled = store.getMeetingState().active!.token;
+  store.applyEvent(observed(2, 'queued'));
+  store.applyEvent(event(3, 'capabilities.changed', { capabilities: {
+    ...initial.capabilities, observeHandoffs: { supported: false, reason: 'History reader lost contact.' },
+  } }, { agentId: null }));
+  assert.equal(store.getMeetingState().active, null);
+  assert.deepEqual(store.getMeetingState().queued, []);
+  store.applyEvent(event(4, 'capabilities.changed', { capabilities: initial.capabilities }, { agentId: null }));
+  store.applyEvent(observed(5, 'active'));
+  store.applyEvent(observed(6, 'queued'));
+  assert.equal(store.getMeetingState().active, null);
+  store.applyEvent(observed(7, 'fresh'));
+  store.completeMeeting(cancelled);
+  assert.equal(store.getMeetingState().active?.handoff.handoffId, 'fresh');
+});

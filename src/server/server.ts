@@ -65,6 +65,7 @@ export async function createOfficeServer(options: OfficeServerOptions = {}) {
       case 'request.resolved': { const owners=new Set([...snapshot.pendingRequests.filter(r=>r.requestId===event.data.requestId).map(r=>r.agentId),...snapshot.agents.filter(a=>a.pendingRequestIds.includes(event.data.requestId)).map(a=>a.agentId)]); if(event.agentId!==null&&[...owners].some(id=>id!==event.agentId)) { snapshot.lastSeq--; return; } snapshot.pendingRequests=snapshot.pendingRequests.filter(r=>r.requestId!==event.data.requestId); for(const owner of snapshot.agents) owner.pendingRequestIds=owner.pendingRequestIds.filter(id=>id!==event.data.requestId); break; }
       case 'project.upserted': snapshot.projects=[...snapshot.projects.filter(p=>p.projectId!==event.data.project.projectId),event.data.project]; break;
       case 'handoff.observed': snapshot.recentHandoffs=[event.data.handoff,...snapshot.recentHandoffs.filter(h=>h.handoffId!==event.data.handoff.handoffId)].slice(0,50); break;
+      case 'capabilities.changed': event.data.capabilities.respondToRequests=snapshot.capabilities.respondToRequests; snapshot.capabilities=event.data.capabilities; disableReply(); break;
       case 'connection.changed': snapshot.connection=event.data.connection; break;
       case 'presentation.changed': snapshot.presentation={state:event.data.state,canSkip:event.data.canSkip}; snapshot.officeSessionId=event.data.officeSessionId; break;
     }

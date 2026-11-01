@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import type { OfficeEvent, OfficeSnapshot } from '../shared/contract';
 import { createOfficeStore, RESYNC_REQUIRED } from './store';
 import { agent, event, request, snapshot, time } from './test-helpers';
+import { isOfficeEvent } from './validation';
 
 test('selection and real requests survive UI choices, scene reset, and metadata updates', () => {
   const store = createOfficeStore(snapshot());
@@ -116,4 +117,34 @@ test('corrupt snapshots/events leave existing state data intact and expose an er
   store.applyEvent({ ...event(1, 'agent.state.changed', { runtimeState: 'idle' }), data: null } as unknown as OfficeEvent);
   assert.match(store.getState().error!, /Invalid office event/);
   assert.equal(store.getState().snapshot!.agents[0].runtimeState, 'working');
+});
+
+test('capability replacement tracks loss/recovery without enabling replies or clearing requests', () => {
+  const store = createOfficeStore(snapshot());
+  store.applyEvent(event(1, 'request.opened', { request: request() }));
+  const pending = store.getState().snapshot!.pendingRequests;
+  for (const [index, supported] of [true, false, true].entries()) {
+    const capabilities = { observeAgents: { supported: true, reason: null },
+      observeHandoffs: { supported, reason: supported ? null : 'History read failed.' },
+      respondToRequests: { supported: true, reason: 'Source claims replies.' } };
+    const update = event(index + 2, 'capabilities.changed', { capabilities }, { agentId: null });
+    assert.ok(isOfficeEvent(update));
+    store.applyEvent(update);
+    assert.deepEqual(store.getState().snapshot!.capabilities.observeHandoffs, capabilities.observeHandoffs);
+    assert.equal(store.getState().snapshot!.capabilities.respondToRequests.supported, false);
+    assert.equal(store.getState().snapshot!.pendingRequests, pending);
+    assert.equal(pending[0].responseCapability.supported, false);
+    assert.equal(capabilities.respondToRequests.supported, true, 'source input remains unmodified');
+  }
+  const previous = store.getState().snapshot;
+  const valid = event(5, 'capabilities.changed', { capabilities: previous!.capabilities }, { agentId: null });
+  for (const malformed of [
+    { ...valid, agentId: 'main' },
+    { ...valid, data: { capabilities: { observeAgents: { supported: true, reason: null } } } },
+    { ...valid, data: { capabilities: { ...previous!.capabilities, observeHandoffs: { supported: 'yes', reason: null } } } },
+  ]) {
+    assert.equal(isOfficeEvent(malformed), false);
+    store.applyEvent(malformed as OfficeEvent);
+    assert.equal(store.getState().snapshot, previous);
+  }
 });

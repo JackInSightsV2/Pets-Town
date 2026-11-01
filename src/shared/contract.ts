@@ -97,6 +97,7 @@ export type OfficeEvent =
   | EventEnvelope<'request.opened', { request: OfficeRequest }>
   | EventEnvelope<'request.resolved', { requestId: string; reason: string | null }>
   | EventEnvelope<'handoff.observed', { handoff: OfficeHandoff }>
+  | EventEnvelope<'capabilities.changed', { capabilities: OfficeSnapshot['capabilities'] }>
   | EventEnvelope<'connection.changed', { connection: OfficeConnection }>
   | EventEnvelope<'presentation.changed', { officeSessionId: string; state: PresentationState; canSkip: boolean }>;
 

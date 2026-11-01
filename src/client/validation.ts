@@ -16,6 +16,7 @@ const activityKind = oneOf('reading', 'editing', 'running-command', 'researching
 const source = oneOf('codex', 'office', 'fixture');
 const presentationState = oneOf('ready', 'arrivals', 'standup', 'live');
 const capability = (v: unknown) => record(v) && bool(v.supported) && textOrNull(v.reason);
+const capabilities = (v: unknown) => record(v) && ['observeAgents', 'observeHandoffs', 'respondToRequests'].every(k => capability(v[k]));
 const connection = (v: unknown) => record(v) && oneOf('connected', 'reconnecting', 'disconnected', 'unsupported')(v.status)
   && nullable(timestamp)(v.lastObservedAt) && textOrNull(v.message);
 const activity = (v: unknown) => record(v) && id(v.activityId) && id(v.agentId) && activityKind(v.kind)
@@ -41,7 +42,7 @@ const unique = (items: unknown[], key: string) => new Set(items.map(v => (v as R
 export function isOfficeSnapshot(v: unknown): v is OfficeSnapshot {
   if (!record(v) || v.protocolVersion !== 1 || !id(v.bridgeEpoch) || !integer(v.lastSeq)
     || !id(v.officeSessionId) || !oneOf('codex', 'fixture')(v.source) || !connection(v.connection)
-    || !record(v.capabilities) || !['observeAgents', 'observeHandoffs', 'respondToRequests'].every(k => capability((v.capabilities as RecordValue)[k]))
+    || !capabilities(v.capabilities)
     || !record(v.presentation) || !presentationState(v.presentation.state) || !bool(v.presentation.canSkip)
     || !array(v.agents, agent) || !array(v.projects, project) || !array(v.pendingRequests, request)
     || !array(v.recentHandoffs, handoff) || !array(v.petAssets, pet)
@@ -64,6 +65,7 @@ export function isOfficeEvent(v: unknown): v is OfficeEvent {
     case 'request.opened': return request(d.request) && (d.request as RecordValue).agentId === v.agentId;
     case 'request.resolved': return id(d.requestId) && textOrNull(d.reason);
     case 'handoff.observed': return handoff(d.handoff);
+    case 'capabilities.changed': return v.agentId === null && capabilities(d.capabilities);
     case 'connection.changed': return connection(d.connection);
     case 'presentation.changed': return v.source === 'office' && id(d.officeSessionId) && presentationState(d.state) && bool(d.canSkip);
     default: return false;
