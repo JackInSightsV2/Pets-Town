@@ -63,6 +63,26 @@ test('unverified and unreadable source cannot advertise support or emit', async 
   assert.equal((await other.initialSnapshot()).capabilities.observeHandoffs.supported,false);
 });
 
+test('empty startup enables after late arrivals, notifying capability without replaying their history',async t=>{
+  const h=harness(); h.snapshot.agents=[];
+  const adapter=await setup(h); t.after(()=>adapter.stop());
+  assert.equal((await adapter.initialSnapshot()).capabilities.observeHandoffs.supported,false);
+  await delay();
+  assert.equal(h.events.length,0);
+  for (const [index,id] of ['a','b'].entries()) h.emit({protocolVersion:1,bridgeEpoch:'base',seq:index+1,
+    eventId:`arrival-${id}`,occurredAt:at,source:'codex',type:'agent.upserted',agentId:id,data:{agent:agent(id)}});
+  await delay();
+  assert.equal((await adapter.initialSnapshot()).capabilities.observeHandoffs.supported,true);
+  const capabilities=h.events.filter(e=>e.type==='capabilities.changed');
+  assert.equal(capabilities.length,1);
+  assert.equal(capabilities[0].data.capabilities.observeHandoffs.supported,true);
+  assert.equal(h.events.filter(e=>e.type==='handoff.observed').length,0);
+  h.items.set('a',[item('old'),item('after-arrival')]); await delay();
+  const handoffs=h.events.filter(e=>e.type==='handoff.observed');
+  assert.equal(handoffs.length,1);
+  assert.equal(handoffs[0].data.handoff.sourceItemId,'after-arrival');
+});
+
 test('reconnect history is seeded without meetings',async t=>{
   const h=harness(); const adapter=await setup(h); t.after(()=>adapter.stop());
   h.items.set('a',[item('old'),item('fresh')]); await delay();
@@ -79,6 +99,10 @@ test('reader failure marks source unavailable and never emits later history',asy
   const snapshot=await adapter.initialSnapshot();
   assert.equal(snapshot.capabilities.observeHandoffs.supported,false);
   assert.equal(snapshot.connection.status,'connected');
+  const changed=h.events.filter(e=>e.type==='capabilities.changed');
+  assert.equal(changed.length,1);
+  assert.equal(changed[0].data.capabilities.observeHandoffs.supported,false);
+  assert.equal(changed[0].agentId,null);
   h.recover('a'); h.items.set('a',[item('old'),item('missed')]);
   h.emit({protocolVersion:1,bridgeEpoch:'base',seq:1,eventId:'metadata-after-failure',occurredAt:at,source:'codex',
     type:'agent.upserted',agentId:'c',data:{agent:agent('c')}});
@@ -106,14 +130,22 @@ test('stop detaches observer and closes reader only once',async()=>{
   h.items.set('a',[item('fresh')]); await delay(); assert.equal(h.events.length,0);
 });
 
-test('an observer gap fails closed and stops handoff delivery',async t=>{
+test('an observer gap exposes disconnected metadata and cannot falsely recover',async t=>{
   const h=harness(); const adapter=await setup(h); t.after(()=>adapter.stop());
   h.emit({protocolVersion:1,bridgeEpoch:'base',seq:2,eventId:'gap',occurredAt:at,source:'codex',
     type:'agent.upserted',agentId:'c',data:{agent:agent('c')}});
-  assert.equal((await adapter.initialSnapshot()).connection.status,'connected');
+  assert.equal((await adapter.initialSnapshot()).connection.status,'disconnected');
   assert.equal((await adapter.initialSnapshot()).capabilities.observeHandoffs.supported,false);
+  const disconnected=h.events.filter(e=>e.type==='connection.changed');
+  assert.equal(disconnected.length,1);
+  assert.equal(disconnected[0].data.connection.status,'disconnected');
+  assert.match(disconnected[0].data.connection.message!,/continuity/);
+  h.emit({protocolVersion:1,bridgeEpoch:'base',seq:3,eventId:'false-recovery',occurredAt:at,source:'codex',
+    type:'connection.changed',agentId:null,data:{connection:{status:'connected',lastObservedAt:at,message:null}}});
   h.items.set('a',[item('old'),item('after-gap')]); await delay();
   assert.equal(h.events.filter(e=>e.type==='handoff.observed').length,0);
+  assert.equal((await adapter.initialSnapshot()).connection.status,'disconnected');
+  assert.equal(h.events.filter(e=>e.type==='connection.changed').length,1);
 });
 
 test('events buffered during initial snapshot preserve one wrapper clock',async t=>{
@@ -141,4 +173,19 @@ test('missing reader generation preserves base metadata while capability stays u
   assert.equal(snapshot.connection.status,'connected');
   assert.equal(snapshot.capabilities.observeHandoffs.supported,false);
   assert.equal(snapshot.agents.length,2);
+});
+
+test('connected message reflects handoff support initially and after metadata updates',async t=>{
+  const h=harness(); h.snapshot.connection.message='Live metadata only.';
+  const adapter=await setup(h); t.after(()=>adapter.stop());
+  const message='Live agent metadata and observed message exchanges. Detailed activity and requests are unavailable.';
+  assert.equal((await adapter.initialSnapshot()).connection.message,message);
+  h.emit({protocolVersion:1,bridgeEpoch:'base',seq:1,eventId:'metadata-connected',occurredAt:at,source:'codex',
+    type:'connection.changed',agentId:null,data:{connection:{status:'connected',lastObservedAt:at,message:'Metadata refresh only.'}}});
+  assert.equal((await adapter.initialSnapshot()).connection.message,message);
+  const connected=h.events.find(e=>e.type==='connection.changed');
+  assert.equal(connected?.data.connection.message,message);
+  h.fail('a'); await delay();
+  assert.equal((await adapter.initialSnapshot()).connection.message,'Metadata refresh only.');
+  assert.equal((await adapter.initialSnapshot()).capabilities.observeHandoffs.supported,false);
 });

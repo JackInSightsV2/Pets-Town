@@ -25,6 +25,7 @@ type Row = Record<string, unknown>;
 const object = (value: unknown): value is Row => !!value && typeof value === 'object' && !Array.isArray(value);
 const liveAgent = (state: OfficeSnapshot, id: string) => state.agents.some(a =>
   a.agentId === id && a.runtimeState !== 'unknown' && a.runtimeState !== 'closed' && a.runtimeState !== 'error');
+const handoffConnectionMessage = 'Live agent metadata and observed message exchanges. Detailed activity and requests are unavailable.';
 
 /**
  * Optional composition seam, not a transport. The caller is responsible for
@@ -44,12 +45,19 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
   let baseEpoch = '', baseSeq = 0;
   let generation = options.reader.generation;
   let stopped = false, timer: ReturnType<typeof setTimeout> | undefined;
-  let enabled = false, sourceFailed = false;
+  let enabled = false, sourceFailed = false, baseFailed = false;
+  let baseConnectionMessage: string | null = null;
   function failHistorySource() {
     if (!state || sourceFailed) return;
     sourceFailed = true; enabled = false;
     state.capabilities.observeHandoffs = unsupported('History reader failed; reopen Office to retry.');
-    // History support and the metadata transport have separate health states.
+    // History support and metadata health are independent; notify connected viewers.
+    publish({ protocolVersion: 1, bridgeEpoch: wrapEpoch, seq: 0, eventId: randomUUID(),
+      occurredAt: now(), source: 'codex', type: 'capabilities.changed', agentId: null,
+      data: { capabilities: structuredClone(state.capabilities) } });
+    if (!baseFailed && state.connection.status === 'connected') publish({ protocolVersion: 1, bridgeEpoch: wrapEpoch, seq: 0, eventId: randomUUID(),
+      occurredAt: now(), source: 'codex', type: 'connection.changed', agentId: null,
+      data: { connection: { ...state.connection, message: baseConnectionMessage } } });
   }
   const wrapEpoch = 'history-' + randomUUID();
 
@@ -68,7 +76,11 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
       case 'request.opened': state.pendingRequests = [...state.pendingRequests.filter(r => r.requestId !== event.data.request.requestId), event.data.request]; break;
       case 'request.resolved': state.pendingRequests = state.pendingRequests.filter(r => r.requestId !== event.data.requestId || (event.agentId !== null && r.agentId !== event.agentId)); break;
       case 'handoff.observed': state.recentHandoffs = [event.data.handoff, ...state.recentHandoffs.filter(h => h.handoffId !== event.data.handoff.handoffId)].slice(0, 50); break;
-      case 'connection.changed': state.connection = event.data.connection; break;
+      case 'capabilities.changed': state.capabilities = { ...event.data.capabilities, observeHandoffs: state.capabilities.observeHandoffs }; event.data.capabilities = structuredClone(state.capabilities); break;
+      case 'connection.changed':
+        if (enabled && event.data.connection.status === 'connected') event.data.connection = { ...event.data.connection, message: handoffConnectionMessage };
+        state.connection = event.data.connection;
+        break;
       case 'presentation.changed': state.presentation = { state: event.data.state, canSkip: event.data.canSkip }; state.officeSessionId = event.data.officeSessionId; break;
       case 'agent.work.completed': break;
     }
@@ -76,11 +88,20 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
     for (const listener of [...listeners]) try { listener(structuredClone(event)); } catch { /* one client cannot stop observation */ }
   }
   function fromBase(event: OfficeEvent) {
-    if (stopped) return;
+    if (stopped || baseFailed) return;
     if (!state) { queued.push(structuredClone(event)); return; }
     if (event.bridgeEpoch === baseEpoch && event.seq <= baseSeq) return;
-    if (event.bridgeEpoch !== baseEpoch || event.seq !== baseSeq + 1) { failHistorySource(); return; }
+    if (event.bridgeEpoch !== baseEpoch || event.seq !== baseSeq + 1) {
+      baseFailed = true;
+      failHistorySource();
+      publish({ protocolVersion: 1, bridgeEpoch: wrapEpoch, seq: 0, eventId: randomUUID(),
+        occurredAt: now(), source: 'codex', type: 'connection.changed', agentId: null,
+        data: { connection: { ...state.connection, status: 'disconnected',
+          message: 'Metadata observer lost event continuity; reopen Office to reconnect.' } } });
+      return;
+    }
     baseSeq = event.seq;
+    if (event.type === 'connection.changed') baseConnectionMessage = event.data.connection.message;
     publish(event);
     if (enabled && event.type === 'connection.changed' && event.data.connection.status !== 'connected') failHistorySource();
   }
@@ -90,26 +111,25 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
     if (initial.source !== 'codex') throw new Error('Live handoff composition requires a Codex source.');
     baseEpoch = initial.bridgeEpoch;
     baseSeq = initial.lastSeq;
+    baseConnectionMessage = initial.connection.message;
     state = { ...initial, bridgeEpoch: wrapEpoch, lastSeq: 0, capabilities: { ...initial.capabilities,
       observeHandoffs: unsupported('Verified handoff history is not available.') } };
     for (const event of queued) fromBase(event);
     queued.length = 0;
     if (options.sourceVerified) {
       // The first complete read of each thread is always history, including late arrivals.
-      let primeReads = 0;
       async function scan() {
-        if (stopped || !state) return;
+        if (stopped || !state || sourceFailed || state.connection.status !== 'connected') return;
         if (!options.reader.generation) throw new Error('Reader generation is required.');
         if (generation !== options.reader.generation) { generation = options.reader.generation; baselined.clear(); }
         const agents = state.agents.filter(a => liveAgent(state!, a.agentId)).map(a => a.agentId);
         for (const threadId of agents) {
-          if (stopped) return;
+          if (stopped || sourceFailed || state.connection.status !== 'connected') return;
           let response: unknown;
           try { response = await options.reader.read(threadId); } catch { if (enabled) failHistorySource(); else sourceFailed = true; return; }
-          if (stopped || !state) return;
+          if (stopped || !state || sourceFailed || state.connection.status !== 'connected') return;
           if (!object(response) || !object(response.thread) || response.thread.id !== threadId || !Array.isArray(response.thread.turns)) { if (enabled) failHistorySource(); else sourceFailed = true; return; }
           if (generation !== options.reader.generation) { generation = options.reader.generation; baselined.clear(); return; }
-          primeReads++;
           const history = !baselined.has(threadId);
           for (const turn of response.thread.turns) {
             if (!object(turn) || typeof turn.id !== 'string' || !Array.isArray(turn.items)) continue;
@@ -129,11 +149,27 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
           baselined.add(threadId);
         }
       }
+      function enableAfterBaseline(notify: boolean) {
+        if (enabled || sourceFailed || !state || baselined.size === 0 || state.connection.status !== 'connected') return;
+        enabled = true;
+        state.capabilities.observeHandoffs = { supported: true, reason: 'Verified passive history reader.' };
+        state.connection = { ...state.connection, message: handoffConnectionMessage };
+        if (notify) publish({ protocolVersion: 1, bridgeEpoch: wrapEpoch, seq: 0, eventId: randomUUID(),
+          occurredAt: now(), source: 'codex', type: 'capabilities.changed', agentId: null,
+          data: { capabilities: structuredClone(state.capabilities) } });
+        if (notify) publish({ protocolVersion: 1, bridgeEpoch: wrapEpoch, seq: 0, eventId: randomUUID(),
+          occurredAt: now(), source: 'codex', type: 'connection.changed', agentId: null,
+          data: { connection: structuredClone(state.connection) } });
+      }
       try { await scan(); } catch { sourceFailed = true; }
-      enabled = !sourceFailed && primeReads > 0 && state.connection.status === 'connected';
-      if (enabled) state.capabilities.observeHandoffs = { supported: true, reason: 'Verified passive history reader.' };
-      const tick = async () => { if (stopped || !enabled) return; try { await scan(); } catch { failHistorySource(); } finally { if (!stopped && enabled) timer = setTimeout(() => void tick(), pollMs); } };
-      if (enabled) timer = setTimeout(() => void tick(), pollMs);
+      enableAfterBaseline(false);
+      const tick = async () => {
+        if (stopped || sourceFailed) return;
+        try { await scan(); enableAfterBaseline(true); } catch { failHistorySource(); }
+        finally { if (!stopped && !sourceFailed) timer = setTimeout(() => void tick(), pollMs); }
+      };
+      // An empty office is not a failed source: keep watching for its first arrival.
+      if (!sourceFailed) timer = setTimeout(() => void tick(), pollMs);
     }
     return {
       initialSnapshot: () => structuredClone(state!),
