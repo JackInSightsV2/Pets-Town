@@ -91,6 +91,7 @@ export function createOfficeStore(initial?: OfficeSnapshot): OfficeStore {
           next.agents = next.agents.map(agent => agent.agentId === e.agentId ? fn(agent) : agent);
         };
         switch (e.type) {
+          case 'project.upserted': next.projects = [...next.projects.filter(p => p.projectId !== e.data.project.projectId), e.data.project]; break;
           case 'agent.upserted': {
             const previous = next.agents.find(agent => agent.agentId === e.agentId);
             const agent = { ...e.data.agent, recentActivity: history([...e.data.agent.recentActivity, ...(previous?.recentActivity ?? [])]),

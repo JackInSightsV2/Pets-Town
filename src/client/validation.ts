@@ -55,6 +55,7 @@ export function isOfficeEvent(v: unknown): v is OfficeEvent {
     || !id(v.eventId) || !timestamp(v.occurredAt) || !source(v.source) || !textOrNull(v.agentId) || !record(v.data)) return false;
   const d = v.data;
   switch (v.type) {
+    case 'project.upserted': return v.agentId === null && project(d.project);
     case 'agent.upserted': return agent(d.agent) && (d.agent as RecordValue).agentId === v.agentId;
     case 'agent.activity': return activity(d.activity) && (d.activity as RecordValue).agentId === v.agentId;
     case 'agent.state.changed': return id(v.agentId) && runtime(d.runtimeState);

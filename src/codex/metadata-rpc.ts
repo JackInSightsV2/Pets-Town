@@ -1,10 +1,17 @@
 /** Extracted from Jack's manual metadata probe; only reads an existing daemon. */
 import WebSocket from 'ws';
-type RpcMethod = 'initialize' | 'thread/loaded/list' | 'thread/read';
-const READ_ONLY_METHODS = new Set<RpcMethod>(['initialize', 'thread/loaded/list', 'thread/read']);
+type RpcMethod = 'initialize' | 'thread/loaded/list' | 'thread/read' | 'thread/goal/get';
+const READ_ONLY_METHODS = new Set<RpcMethod>(['initialize', 'thread/loaded/list', 'thread/read', 'thread/goal/get']);
 type JsonObject = Record<string, unknown>;
 const object = (v: unknown): v is JsonObject => v !== null && typeof v === 'object' && !Array.isArray(v);
 const text = (v: unknown): string | null => typeof v === 'string' && v.length > 0 ? v : null;
+
+/** Preserve protocol classification without retaining server error text. */
+export class MetadataRpcError extends Error {
+  constructor(readonly code: number | 'unknown') {
+    super(`Codex metadata request rejected (${code}).`);
+  }
+}
 
 export class MetadataRpc {
   private nextId = 0;
@@ -20,7 +27,7 @@ export class MetadataRpc {
       this.pending.delete(message.id); clearTimeout(pending.timer);
       if ('error' in message) {
         const code = object(message.error) && typeof message.error.code === 'number' ? message.error.code : 'unknown';
-        pending.reject(new Error(`Codex metadata request rejected (${code}).`));
+        pending.reject(new MetadataRpcError(code));
       } else pending.resolve(message.result);
     });
     const disconnected = () => this.rejectPending(new Error('Codex metadata socket disconnected.'));
@@ -46,6 +53,7 @@ export class MetadataRpc {
   get connected() { return this.socket.readyState === WebSocket.OPEN; }
   call(method: RpcMethod, params: JsonObject): Promise<unknown> {
     if (method === 'thread/read' && (params.includeTurns !== false || typeof params.threadId !== 'string' || Object.keys(params).some(key => key !== 'threadId' && key !== 'includeTurns'))) return Promise.reject(new Error('Metadata reads require includeTurns:false.'));
+    if (method === 'thread/goal/get' && (!text(params.threadId) || Object.keys(params).some(key => key !== 'threadId'))) return Promise.reject(new Error('Goal reads require only a threadId.'));
     if (!READ_ONLY_METHODS.has(method)) return Promise.reject(new Error('Method outside the read-only allowlist.'));
     if (!this.connected) return Promise.reject(new Error('Codex metadata socket is not connected.'));
     return new Promise((done, reject) => {

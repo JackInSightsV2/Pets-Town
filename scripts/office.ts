@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { readOptions, startBridge, installShutdown } from '../src/server/main.js';
+import { readOptions, startBridge, installShutdown, defaultObserverIdentity } from '../src/server/main.js';
 
 async function openBrowser(url:string) {
   const command=process.platform==='darwin'?'open':process.platform==='win32'?'cmd':'xdg-open';
@@ -9,10 +9,11 @@ async function openBrowser(url:string) {
 async function main() {
   const options=readOptions();
   const url=`http://127.0.0.1:${options.port}`;
-  let existing: {service?:string;protocolVersion?:number;source?:string}|undefined;
+  let existing: {service?:string;protocolVersion?:number;source?:string;launchIdentity?:string}|undefined;
   try {const response=await fetch(`${url}/api/health`,{signal:AbortSignal.timeout(700)});if(response.ok)existing=await response.json();} catch { /* Startup below distinguishes a free port from a collision. */ }
   if(existing?.service==='petstown-office'&&existing.protocolVersion===1) {
     if(options.adapterModule)throw new Error('A bridge already occupies this port; adapter identity cannot be verified. Stop it yourself or choose another --port to load the requested adapter.');
+    if(!options.fixture&&(!existing.launchIdentity||existing.launchIdentity!==defaultObserverIdentity()))throw new Error('An office bridge already occupies this port, but its observer identity and working-directory scope cannot be verified. Reopen its known URL, or choose another --port to start the automatic Codex metadata observer. No existing process was changed.');
     if((options.fixture?'fixture':'codex')!==existing.source)throw new Error(`Existing bridge mode is ${existing.source}; use another --port or stop that bridge yourself.`);
     console.log(`Reusing PetsTown bridge ${url}`);
     if(!options.noOpen)await openBrowser(url);

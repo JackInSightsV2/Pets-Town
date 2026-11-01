@@ -3,14 +3,14 @@ import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import type { OfficeAdapter } from '../server/adapter.js';
-import { emptySnapshot, unsupported, type OfficeAgent, type OfficeConnection, type OfficeEvent } from '../shared/contract.js';
+import { emptySnapshot, unsupported, type OfficeAgent, type OfficeConnection, type OfficeEvent, type OfficeProject } from '../shared/contract.js';
 import { builtInPets } from '../shared/pets.js';
-import { MetadataRpc } from './metadata-rpc.js';
+import { MetadataRpc, MetadataRpcError } from './metadata-rpc.js';
 import { agentSemanticFingerprint, canonicalizeCwd, normalizeThreadMetadata } from './observer-normalization.js';
 
 export interface MetadataReader {
   readonly connected: boolean;
-  call(method: 'thread/loaded/list' | 'thread/read', params: Record<string, unknown>): Promise<unknown>;
+  call(method: 'thread/loaded/list' | 'thread/read' | 'thread/goal/get', params: Record<string, unknown>): Promise<unknown>;
   close(): void;
 }
 export interface MetadataAdapterOptions {
@@ -38,8 +38,8 @@ export async function createMetadataAdapter(options: MetadataAdapterOptions): Pr
   let rpc: MetadataReader | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
-  let bootstrapped = false;
-  function emit(type: 'agent.upserted' | 'connection.changed', agentId: string | null, data: unknown) {
+  let goalMethodSupported = true;
+  function emit(type: 'agent.upserted' | 'project.upserted' | 'connection.changed', agentId: string | null, data: unknown) {
     if (stopped) return;
     const seq = ++state.lastSeq;
     const event = { protocolVersion: 1, bridgeEpoch: state.bridgeEpoch, seq,
@@ -64,6 +64,13 @@ export async function createMetadataAdapter(options: MetadataAdapterOptions): Pr
     // Apply exactly one row before numbering/notifying: a synchronous snapshot has the matching cursor.
     emit('agent.upserted', agent.agentId, { agent });
   }
+  function upsertProject(project: OfficeProject) {
+    if (stopped) return;
+    const index = state.projects.findIndex(previous => previous.projectId === project.projectId);
+    if (index >= 0 && JSON.stringify(state.projects[index]) === JSON.stringify(project)) return;
+    if (index < 0) state.projects.push(project); else state.projects[index] = project;
+    emit('project.upserted', null, { project });
+  }
   async function poll() {
     if (stopped) return;
     try {
@@ -74,6 +81,7 @@ export async function createMetadataAdapter(options: MetadataAdapterOptions): Pr
         const connected = await options.connect();
         if (stopped) { connected.close(); return; }
         rpc = connected;
+        goalMethodSupported = true;
       }
       const ids = new Set<string>(), cursors = new Set<string>();
       let cursor: string | undefined;
@@ -101,21 +109,37 @@ export async function createMetadataAdapter(options: MetadataAdapterOptions): Pr
           if (row) observed.set(row.agent.agentId, row);
         });
       }
-      // Office v1 currently cannot stream project metadata. Catalogue is atomic with the initial snapshot.
-      if (!bootstrapped) for (const row of observed.values()) {
-        if (!state.projects.some(project => project.projectId === row.project.projectId)) state.projects.push(row.project);
+      // Optional goals are read only after cwd scoping. Bound the extra work to
+      // 64 agents / 8 simultaneous requests; other tasks remain explicitly unknown.
+      const goalRows = [...observed.values()].slice(0, 64);
+      for (let offset = 0; goalMethodSupported && offset < goalRows.length; offset += 8) {
+        await Promise.all(goalRows.slice(offset, offset + 8).map(async row => {
+          try {
+            const result = await rpc!.call('thread/goal/get', { threadId: row.agent.agentId });
+            if (stopped) return;
+            if (object(result) && object(result.goal) && result.goal.threadId === row.agent.agentId
+              && result.goal.status === 'active' && typeof result.goal.objective === 'string'
+              && result.goal.objective.trim()) row.agent.task = `Goal: ${result.goal.objective}`;
+          } catch (error) {
+            if (error instanceof MetadataRpcError && error.code === -32601) {
+              goalMethodSupported = false;
+              return;
+            }
+            throw error;
+          }
+        }));
+        if (stopped) return;
       }
-      let deferredProjects = false;
-      for (const row of observed.values()) {
-        if (!state.projects.some(project => project.projectId === row.project.projectId)) { deferredProjects = true; continue; }
-        upsert(row.agent);
-      }
+      if (!rpc.connected) throw new Error('Metadata connection lost during observation.');
+      // Publish project identity before any agent that references it, including
+      // discovery after an empty initial snapshot and changes within the scope.
+      for (const row of observed.values()) upsertProject(row.project);
+      for (const row of observed.values()) upsert(row.agent);
       for (const previous of [...state.agents]) {
         if (!observed.has(previous.agentId)) upsert({ ...previous, runtimeState: 'unknown' });
       }
-      connection({ status: 'connected', lastObservedAt: observedAt, message: deferredProjects
-        ? 'Metadata only. A new project was observed; reopen Office to include its project metadata.'
-        : 'Live metadata polling. Item activity, request details and handoffs are unavailable.' });
+      connection({ status: 'connected', lastObservedAt: observedAt,
+        message: 'Live metadata polling. Item activity, request details and handoffs are unavailable.' });
     } catch {
       if (stopped) return;
       rpc?.close(); rpc = null;
@@ -127,7 +151,7 @@ export async function createMetadataAdapter(options: MetadataAdapterOptions): Pr
   }
   await poll();
   return {
-    initialSnapshot() { bootstrapped = true; return structuredClone(state); },
+    initialSnapshot() { return structuredClone(state); },
     subscribe(listener) { if (!stopped) listeners.add(listener); return () => { listeners.delete(listener); }; },
     stop() { stopped = true; clearTimeout(timer); listeners.clear(); rpc?.close(); rpc = null; },
   };
