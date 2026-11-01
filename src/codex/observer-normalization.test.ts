@@ -27,9 +27,16 @@ test('synthetic: stable source identity, direct parent, role and explicit projec
   assert.equal(agent.parentAgentId, 'synthetic-parent');
   assert.equal(agent.projectId, 'synthetic-project-id');
   assert.equal(project.projectId, agent.projectId);
-  assert.equal(agent.displayName, 'Synthetic worker');
+  assert.equal(agent.displayName, 'Synthetic fallback');
   assert.equal(agent.role, 'reviewer');
   assert.equal(agent.lastObservedAt, syntheticOptions.observedAt);
+});
+
+test('synthetic: actual chat title wins, otherwise native task path precedes nickname', () => {
+  assert.equal(normalize({ name: 'Review checkout', agentNickname: 'Synthetic nickname', agentPath: '/root/review_changes' }).agent.displayName, 'Review checkout');
+  assert.equal(normalize({ agentNickname: 'Synthetic nickname', agentPath: '/root/review_changes/audit_native_names' }).agent.displayName, 'audit native names');
+  assert.equal(normalize({ agentNickname: 'Synthetic nickname', agentPath: '/unverified/prompt text' }).agent.displayName, 'Synthetic nickname');
+  assert.equal(normalize({ agentNickname: 'Synthetic nickname' }).agent.displayName, 'Synthetic nickname');
 });
 
 test('synthetic: unverified nested parent and task/activity/request text stay unknown', () => {

@@ -6,6 +6,12 @@ type JsonObject = Record<string, unknown>;
 const object = (value: unknown): value is JsonObject => value !== null && typeof value === 'object' && !Array.isArray(value);
 const text = (value: unknown): string | null => typeof value === 'string' && value.trim().length > 0 ? value : null;
 
+/** Format an existing native task name; never infer one from prompt or transcript content. */
+function nativeTaskName(value: unknown): string | null {
+  if (typeof value !== 'string' || !/^\/root\/[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/.test(value)) return null;
+  return value.slice(value.lastIndexOf('/') + 1).replace(/[_-]+/g, ' ');
+}
+
 export interface ThreadNormalizationOptions {
   /** Exact working directories permitted for this observer; descendants are not implicitly included. */
   allowedCwds: ReadonlySet<string> | readonly string[];
@@ -64,7 +70,7 @@ export function normalizeThreadMetadata(value: unknown, options: ThreadNormaliza
   const index = options.petAssets.length ? createHash('sha256').update(agentId).digest()[0] % options.petAssets.length : -1;
   const agent: OfficeAgent = {
     agentId, parentAgentId, projectId,
-    displayName: text(value.agentNickname) ?? text(value.name) ?? `${parentAgentId ? 'Subagent' : 'Agent'} ${agentId.slice(0, 8)}`,
+    displayName: text(value.name) ?? nativeTaskName(value.agentPath) ?? text(value.agentNickname) ?? `${parentAgentId ? 'Subagent' : 'Agent'} ${agentId.slice(0, 8)}`,
     role: text(value.agentRole), task: null,
     runtimeState: normalizeRuntimeState(value.status), activityKind: 'unknown',
     lastObservedAt: options.observedAt, pendingRequestIds: [],

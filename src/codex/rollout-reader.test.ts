@@ -9,6 +9,23 @@ import { RolloutReader } from './rollout-reader.js';
 const line = (type: string, payload: unknown) => JSON.stringify({ type, payload }) + '\n';
 const meta = line('session_meta', { id: 'synthetic-id', cwd: '/synthetic/project', parent_thread_id: 'synthetic-parent' });
 const event = (type: string, turn_id = 'synthetic-turn', extra = {}) => line('event_msg', { type, turn_id, ...extra });
+
+test('projects verified native nickname and task path without retaining prompt text', async () => {
+  await fixture(async path => {
+    await writeFile(path, line('session_meta', {
+      id: 'synthetic-id', cwd: '/synthetic/project', parent_thread_id: 'synthetic-parent',
+      agent_nickname: 'Synthetic nickname', agent_path: '/root/audit_native_names',
+      prompt: 'SYNTHETIC_PRIVATE_PROMPT',
+    }));
+    const reader = new RolloutReader([path]);
+    await reader.call('thread/loaded/list', {});
+    const result = await reader.call('thread/read', { threadId: 'synthetic-id', includeTurns: false }) as { thread: { agentNickname: string; agentPath: string } };
+    assert.equal(result.thread.agentNickname, 'Synthetic nickname');
+    assert.equal(result.thread.agentPath, '/root/audit_native_names');
+    assert.equal(JSON.stringify(result).includes('SYNTHETIC_PRIVATE_PROMPT'), false);
+    reader.close();
+  });
+});
 async function fixture(run: (path: string) => Promise<void>) {
   const dir = await mkdtemp(join(tmpdir(), 'rollout-reader-'));
   try { await run(join(dir, 'rollout.jsonl')); } finally { await rm(dir, { recursive: true, force: true }); }
