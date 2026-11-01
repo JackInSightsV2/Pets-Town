@@ -44,7 +44,16 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
   let baseEpoch = '', baseSeq = 0;
   let generation = options.reader.generation;
   let stopped = false, timer: ReturnType<typeof setTimeout> | undefined;
-  let enabled = false;
+  let enabled = false, sourceFailed = false;
+  function failHistorySource() {
+    if (!state || sourceFailed) return;
+    sourceFailed = true; enabled = false;
+    state.capabilities.observeHandoffs = unsupported('History reader failed; reopen Office to retry.');
+    publish({ protocolVersion: 1, bridgeEpoch: wrapEpoch, seq: 0, eventId: 'history-failure-' + randomUUID(),
+      occurredAt: now(), source: 'codex', type: 'connection.changed', agentId: null,
+      data: { connection: { status: 'disconnected', lastObservedAt: state.connection.lastObservedAt,
+        message: 'Handoff history became unavailable; reopen Office to retry.' } } });
+  }
   const wrapEpoch = 'history-' + randomUUID();
 
   function publish(input: OfficeEvent) {
@@ -74,7 +83,9 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
     if (!state) { queued.push(structuredClone(event)); return; }
     if (event.bridgeEpoch !== baseEpoch || event.seq <= baseSeq) return;
     baseSeq = event.seq;
+    if (sourceFailed && event.type === 'connection.changed') return;
     publish(event);
+    if (enabled && event.type === 'connection.changed' && event.data.connection.status !== 'connected') failHistorySource();
   }
   const unsubscribe = options.base.subscribe(fromBase);
   try {
@@ -97,9 +108,9 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
         for (const threadId of agents) {
           if (stopped) return;
           let response: unknown;
-          try { response = await options.reader.read(threadId); } catch { continue; }
+          try { response = await options.reader.read(threadId); } catch { if (enabled) failHistorySource(); else sourceFailed = true; return; }
           if (stopped || !state) return;
-          if (!object(response) || !object(response.thread) || response.thread.id !== threadId || !Array.isArray(response.thread.turns)) continue;
+          if (!object(response) || !object(response.thread) || response.thread.id !== threadId || !Array.isArray(response.thread.turns)) { if (enabled) failHistorySource(); else sourceFailed = true; return; }
           if (generation !== options.reader.generation) { generation = options.reader.generation; baselined.clear(); return; }
           primeReads++;
           const history = !baselined.has(threadId);
@@ -122,9 +133,9 @@ export async function createHandoffHistoryAdapter(options: HistoryAdapterOptions
         }
       }
       await scan();
-      enabled = primeReads > 0;
+      enabled = !sourceFailed && primeReads > 0 && state.connection.status === 'connected';
       if (enabled) state.capabilities.observeHandoffs = { supported: true, reason: 'Verified passive history reader.' };
-      const tick = async () => { if (stopped) return; try { await scan(); } finally { if (!stopped) timer = setTimeout(() => void tick(), pollMs); } };
+      const tick = async () => { if (stopped || !enabled) return; try { await scan(); } catch { failHistorySource(); } finally { if (!stopped && enabled) timer = setTimeout(() => void tick(), pollMs); } };
       if (enabled) timer = setTimeout(() => void tick(), pollMs);
     }
     return {
