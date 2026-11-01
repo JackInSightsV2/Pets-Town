@@ -1,3 +1,4 @@
+import { venueLayout, insideVenue, audienceSeats } from "./layout";
 /** Approximate venue geometry, rebuilt from a private scan reference. Units are metres. */
 export interface FloorPoint {
   x: number;
@@ -9,33 +10,31 @@ export interface Obstacle {
   width: number;
   depth: number;
 }
-export const desks = [
-  { x: -6, z: -3.7 },
-  { x: -3.3, z: -3.7 },
-  { x: -6, z: 0 },
-  { x: -3.3, z: 0 },
-  { x: -4.5, z: 4 },
-];
+export const desks = venueLayout.tables;
 export const obstacles: Obstacle[] = [
-  ...desks.map((p) => ({ ...p, width: 2.5, depth: 2.5 })),
-  { x: -8, z: -5.9, width: 0.7, depth: 0.7 },
-  { x: -8, z: 5.7, width: 0.8, depth: 0.8 },
-  { x: 2, z: -2.4, width: 0.7, depth: 0.7 },
-  { x: 8.1, z: 6, width: 0.8, depth: 0.8 },
-  { x: 3.7, z: -0.8, width: 0.6, depth: 0.6 },
-  { x: 0.6, z: -5, width: 3.5, depth: 2.4 },
-  { x: 7.4, z: -0.9, width: 2.2, depth: 1.1 },
-  { x: 6.4, z: 4.8, width: 3.5, depth: 1.4 },
-  { x: 6.3, z: 3, width: 1.4, depth: 0.8 },
-  { x: 4.7, z: -0.9, width: 0.8, depth: 0.8 },
+  ...desks.map((p) => ({
+    x: p.x,
+    z: p.z,
+    width: p.rotation ? p.length + 0.1 : p.width + 0.95,
+    depth: p.rotation ? p.width + 0.95 : p.length + 0.1,
+  })),
+  { x: 3.75, z: -4, width: 2.7, depth: 2.7 },
+  { x: -6.5, z: -0.85, width: 2.5, depth: 1 },
+  { x: 0.8, z: -8.65, width: 1.9, depth: 0.85 },
+  { x: 6.5, z: 1.55, width: 2.8, depth: 0.85 },
+  { x: 6.9, z: 2.9, width: 1.25, depth: 1.25 },
+  { x: 5.65, z: 2.25, width: 0.6, depth: 0.6 },
+  ...audienceSeats.map((p) => ({ ...p, width: 0.52, depth: 0.52 })),
 ];
-export function walkable(p: FloorPoint, margin = 0.32): boolean {
+export function walkable(p: FloorPoint, margin = 0.16): boolean {
   if (
-    p.x < -8.6 ||
-    p.x > 8.6 ||
-    p.z < -6.6 ||
-    p.z > 6.6 ||
-    (p.x > 2.6 && p.z < -1.65)
+    !insideVenue(p) ||
+    ![
+      [margin, 0],
+      [-margin, 0],
+      [0, margin],
+      [0, -margin],
+    ].every(([x, z]) => insideVenue({ x: p.x + x, z: p.z + z }))
   )
     return false;
   return !obstacles.some(
@@ -44,10 +43,10 @@ export function walkable(p: FloorPoint, margin = 0.32): boolean {
       Math.abs(p.z - o.z) < o.depth / 2 + margin,
   );
 }
-const step = 0.5;
+const step = 0.25;
 const cells: FloorPoint[] = [];
-for (let x = -8; x <= 8; x += step)
-  for (let z = -6; z <= 6; z += step)
+for (let x = -10; x <= 8; x += step)
+  for (let z = -9; z <= 8; z += step)
     if (walkable({ x, z })) cells.push({ x, z });
 const key = (p: FloorPoint) => `${p.x},${p.z}`;
 const grid = new Map(cells.map((p) => [key(p), p]));
@@ -103,13 +102,13 @@ export function createVenuePlacement() {
   const occupied = new Set<string>();
   const projects = new Map<string, number>();
   const zones = [
-    { x: -7.4, z: -3.5 },
-    { x: -4.7, z: -3.5 },
-    { x: -7.4, z: 0.2 },
-    { x: -4.7, z: 0.2 },
-    { x: -5.8, z: 4 },
-    { x: 1, z: 2 },
-    { x: 4, z: 2 },
+    { x: -4, z: -6 },
+    { x: -4.6, z: -2.5 },
+    { x: -6.5, z: -3.7 },
+    { x: -1.8, z: 2.6 },
+    { x: 0.3, z: 4.9 },
+    { x: 4.6, z: 4.9 },
+    { x: 1.8, z: 0 },
   ];
   return {
     homes,

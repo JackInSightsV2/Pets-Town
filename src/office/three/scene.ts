@@ -11,6 +11,8 @@ import {
   stateLabels,
 } from "../../ui/view-model";
 import { buildVenue } from "./venue";
+import { createVenueDisplay } from "./render";
+import { meetingPoints } from "./layout";
 import {
   createVenuePlacement,
   floorPath,
@@ -44,12 +46,12 @@ export function createVenueScene(
   });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = T.PCFSoftShadowMap;
+  renderer.shadowMap.type = T.PCFShadowMap;
   renderer.shadowMap.autoUpdate = false;
   renderer.shadowMap.needsUpdate = true;
   renderer.outputColorSpace = T.SRGBColorSpace;
   renderer.toneMapping = T.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.35;
+  renderer.toneMappingExposure = 1.08;
   host.append(renderer.domElement);
   renderer.domElement.setAttribute(
     "aria-label",
@@ -57,7 +59,7 @@ export function createVenueScene(
   );
   renderer.domElement.tabIndex = 0;
   const scene = new T.Scene();
-  scene.background = new T.Color("#e9e7df");
+  scene.background = new T.Color("#f3efe3");
   const camera = new T.OrthographicCamera(-14, 14, 11, -11, 0.1, 120);
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
@@ -67,10 +69,10 @@ export function createVenueScene(
   controls.maxPolarAngle = Math.PI / 2.25;
   controls.minPolarAngle = 0.12;
   controls.target.set(0, 0, 0);
-  const ambient = new T.HemisphereLight(0xfff9e7, 0x8b9c88, 2.4);
+  const ambient = new T.HemisphereLight(0xfff2da, 0x898371, 1.75);
   scene.add(ambient);
-  const sun = new T.DirectionalLight(0xffefd1, 4);
-  sun.position.set(-8, 18, 12);
+  const sun = new T.DirectionalLight(0xfff1d8, 2.5);
+  sun.position.set(-6, 16, 3);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   Object.assign(sun.shadow.camera, {
@@ -82,18 +84,20 @@ export function createVenueScene(
     far: 55,
   });
   sun.shadow.normalBias = 0.04;
+  sun.shadow.radius = 2.5;
   sun.shadow.bias = -0.0001;
   scene.add(sun);
   const ground = new T.Mesh(
     new T.PlaneGeometry(160, 160),
-    new T.MeshStandardMaterial({ color: 0xe9e7df, roughness: 1 }),
+    new T.MeshStandardMaterial({ color: 0xf3efe3, roughness: 1 }),
   );
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = -0.45;
   ground.receiveShadow = true;
   scene.add(ground);
-  const { room, walls } = buildVenue();
-  scene.add(room);
+  const { room, walls: sourceWalls } = buildVenue();
+  const {display, walls} = createVenueDisplay(room, sourceWalls);
+  scene.add(display);
   const pets = new Map<string, Pet>();
   const placement = createVenuePlacement();
   const overrides = new Map<string, FloorPoint>();
@@ -119,9 +123,9 @@ export function createVenueScene(
   };
   media.addEventListener("change", motion);
   function home() {
-    camera.position.set(21, 23, 29);
-    controls.target.set(0, 0.3, 0);
-    camera.zoom = 1;
+    camera.position.set(-16, 25, 32);
+    controls.target.set(-0.5, 0.4, 0.5);
+    camera.zoom = 1.12;
     camera.updateProjectionMatrix();
     controls.update();
   }
@@ -136,7 +140,7 @@ export function createVenueScene(
     const w = host.clientWidth,
       h = host.clientHeight;
     if (!w || !h) return;
-    const span = Math.max(21, (27 * h) / w);
+    const span = Math.max(22, (27 * h) / w);
     camera.left = (-span * w) / h / 2;
     camera.right = (span * w) / h / 2;
     camera.top = span / 2;
@@ -205,7 +209,7 @@ export function createVenueScene(
     };
     label.onpointerdown = (e) => e.stopPropagation();
     labels.append(label);
-    const origin = nearestFloor({ x: -7, z: 6 });
+    const origin = nearestFloor({ x: -8.7, z: 0.4 });
     const p: Pet = {
       agent,
       asset,
@@ -271,7 +275,7 @@ export function createVenueScene(
       }
       p ??= add(agent, asset);
       p.agent = agent;
-      const width = agent.parentAgentId ? 0.9 : 1.35;
+      const width = agent.parentAgentId ? 0.54 : 0.8;
       p.sprite.scale.set(
         width,
         (width * (asset.height / asset.rows)) / (asset.width / asset.columns),
@@ -329,7 +333,7 @@ export function createVenueScene(
       ];
       const i = pair.indexOf(id);
       if (i !== -1 && meeting.phase !== "return")
-        return nearestFloor({ x: 4 + i, z: 0.5 });
+        return nearestFloor(meetingPoints[i]);
     }
     if (overrides.has(id)) return overrides.get(id)!;
     if (state === "ready")
@@ -344,8 +348,8 @@ export function createVenueScene(
       });
     if (p.agent.runtimeState === "idle")
       return nearestFloor({
-        x: 4.3 + (index % 4) * 0.7,
-        z: 2 + Math.floor(index / 4) * 0.7,
+        x: 5 + (index % 3) * 0.7,
+        z: 4 + Math.floor(index / 3) * 0.7,
       });
     return placement.homes.get(id) ?? nearestFloor({ x: 0, z: 0 });
   }
@@ -399,7 +403,7 @@ export function createVenueScene(
         isWaiting(p.agent) ? 0xc2793f : 0x517f66,
       );
       projected.copy(p.position);
-      projected.y += 1.8;
+      projected.y += 1.15;
       projected.project(camera);
       const w = host.clientWidth,
         h = host.clientHeight;
@@ -572,12 +576,13 @@ export function createVenueScene(
       renderer.domElement.removeEventListener("keydown", keyboard);
       for (const p of pets.values()) remove(p);
       scene.traverse((o) => {
-        if (o instanceof T.Mesh) {
+        if (o instanceof T.Mesh || o instanceof T.LineSegments) {
           o.geometry.dispose();
           for (const m of Array.isArray(o.material) ? o.material : [o.material])
             m.dispose();
         }
       });
+      room.traverse(o=>{if(o instanceof T.Mesh || o instanceof T.LineSegments)o.geometry.dispose();});
       renderer.dispose();
       renderer.domElement.remove();
     },

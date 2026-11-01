@@ -1,8 +1,8 @@
 # Interactive 3D venue and shared pets
 
-The default scene is now a real Three.js room. It is a simplified reconstruction guided by a private venue scan and a cartoon study, not the scan with a filter. Furniture and architectural details are approximate. No original scan, photo texture or generated reference image is included in this branch.
+The default scene is a real Three.js room. The layout comes from a traced orthographic view of the private scan; the cartoon study supplies the visual style only. The stage and six worktable footprints use coordinates extracted from visible surfaces. The central audience chairs, smaller right wing and projecting entrances replace the earlier estimated layout. See [scan layout notes](scan-layout-notes.md) for measurement limits. No original scan, photo texture or generated reference image is included in this branch.
 
-The room contains named, separate objects: floor, cutaway walls, curtains, stage, worktables, chairs, laptops, plants, lounge and water cooler. **Export room** downloads a GLB containing the environment only, without pet artwork, names, tasks or requests.
+The room contains named, separate objects: floor, cutaway brick walls, curtains, stage, worktables, audience chairs, laptops, plants, equipment and water cooler. **Export room** downloads a GLB containing the environment only, without pet artwork, names, tasks or requests.
 
 ## Run on one Mac
 

@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { meetingPoints } from "./layout";
 import assert from "node:assert/strict";
 import {
   floorPath,
@@ -9,11 +10,11 @@ import {
 test("routes from the entrance to desks and cooler stay on clear floor", () => {
   for (const destination of [
     { x: -7.5, z: -3.5 },
-    { x: 4, z: 0.5 },
-    { x: 5, z: 0.5 },
-    { x: 4, z: 2 },
+    ...meetingPoints,
+    { x: 4.6, z: 4.9 },
+    { x: -4, z: -6 },
   ]) {
-    const path = floorPath({ x: -7, z: 6 }, destination);
+    const path = floorPath({ x: -8.7, z: 0.4 }, destination);
     assert.ok(path.length > 1);
     assert.deepEqual(path.at(-1), nearestFloor(destination));
     assert.ok(path.every((p) => walkable(p)));
